@@ -1,0 +1,27 @@
+[
+    {
+        "name": "AsFault",
+        "description": "AsFault's procedurally generated driving task",
+        "authors": "",
+        "difficulty": "0",
+        "vehicles": {
+            "scenario_player1": {
+                "playerUsable": true,
+                "startFocus": true
+            },
+            "*": {
+                "playerUsable": false
+            }
+        },
+        "whiteListActions": [
+            "default_whitelist_scenario"
+        ],
+        "blackListActions": [
+            "default_blacklist_scenario"
+        ],
+        "prefabs": [
+            "{{prefab}}"
+        ],
+        "radiusMultiplierAI": 2
+    }
+]

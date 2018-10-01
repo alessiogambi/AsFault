@@ -1,0 +1,165 @@
+//--- OBJECT WRITE BEGIN
+$ThisPrefab = new SimGroup() {
+    canSave = "1";
+    canSaveDynamicFields = "1";
+    groupPosition = "0.000000 0.000000 0.000000";
+
+    {% for street in streets %}
+    new DecalRoad(street_{{street.street_id}}) {
+        drivability = "1";
+        oneWay = "0";
+        flipDirection = "0";
+        improvedSpline = "0";
+        startTangent = "0";
+        endTangent = "0";
+        looped = "0";
+        smoothness = "0.5";
+        detail = "0.1";
+        overObjects = "1";
+        breakAngle = "180";
+        renderPriority = "10";
+        zBias = "0";
+        decalBias = "0.0005";
+        distanceFade = "1000 1000";
+        startEndFade = "0 0";
+        position = "{{street.position.x}} {{street.position.y}} {{street.position.z}}";
+        scale = "1 1 1";
+        rotationMatrix = "1 0 0 0 1 0 0 0 1";
+        canSave = "1";
+        canSaveDynamicFields = "1";
+
+        Material = "road_rubber_sticky";
+        textureLength = "2.5";
+
+        {% for node in street.nodes %}
+        Node = "{{node.x}} {{node.y}} {{node.z}} {{node.width}}";
+        {% endfor %}
+    };
+    {% endfor %}
+
+    {% for divider in dividers %}
+    new DecalRoad(divider_{{divider.divider_id}}) {
+        drivability = "-1";
+        oneWay = "0";
+        flipDirection = "0";
+        improvedSpline = "0";
+        startTangent = "0";
+        endTangent = "0";
+        looped = "0";
+        smoothness = "0.5";
+        detail = "0.1";
+        overObjects = "1";
+        breakAngle = "180";
+        renderPriority = "9";
+        zBias = "0";
+        decalBias = "0.0005";
+        distanceFade = "0 0";
+        position = "{{divider.position.x}} {{divider.position.y}} {{divider.position.z}}";
+        scale = "1 1 1";
+        rotationMatrix = "1 0 0 0 1 0 0 0 1";
+        canSave = "1";
+        canSaveDynamicFields = "1";
+
+        Material = "line_dashed_short";
+        textureLength = "16";
+
+        {% for node in divider.nodes %}
+        Node = "{{node.x}} {{node.y}} {{node.z}} {{node.width}}";
+        {% endfor %}
+    };
+    {% endfor %}
+
+    {% for boundary in l_boundaries %}
+    new DecalRoad(boundary_{{boundary.divider_id}}) {
+        drivability = "-1";
+        oneWay = "0";
+        flipDirection = "0";
+        improvedSpline = "0";
+        startTangent = "0";
+        endTangent = "0";
+        looped = "0";
+        smoothness = "0.5";
+        detail = "0.1";
+        overObjects = "1";
+        breakAngle = "180";
+        renderPriority = "9";
+        zBias = "0";
+        decalBias = "0.0005";
+        distanceFade = "0 0";
+        position = "{{boundary.position.x}} {{boundary.position.y}} {{boundary.position.z}}";
+        scale = "1 1 1";
+        rotationMatrix = "1 0 0 0 1 0 0 0 1";
+        canSave = "1";
+        canSaveDynamicFields = "1";
+
+        Material = "line_white";
+        textureLength = "16";
+
+        {% for node in boundary.nodes %}
+        Node = "{{node.x}} {{node.y}} {{node.z}} {{node.width}}";
+        {% endfor %}
+    };
+    {% endfor %}
+
+    {% for boundary in r_boundaries %}
+    new DecalRoad(boundary_{{boundary.divider_id}}) {
+        drivability = "-1";
+        oneWay = "0";
+        flipDirection = "0";
+        improvedSpline = "0";
+        startTangent = "0";
+        endTangent = "0";
+        looped = "0";
+        smoothness = "0.5";
+        detail = "0.1";
+        overObjects = "1";
+        breakAngle = "180";
+        renderPriority = "9";
+        zBias = "0";
+        decalBias = "0.0005";
+        distanceFade = "0 0";
+        position = "{{boundary.position.x}} {{boundary.position.y}} {{boundary.position.z}}";
+        scale = "1 1 1";
+        rotationMatrix = "1 0 0 0 1 0 0 0 1";
+        canSave = "1";
+        canSaveDynamicFields = "1";
+
+        Material = "line_white";
+        textureLength = "16";
+
+        {% for node in boundary.nodes %}
+        Node = "{{node.x}} {{node.y}} {{node.z}} {{node.width}}";
+        {% endfor %}
+    };
+    {% endfor %}
+
+    {% for waypoint in waypoints %}
+    new BeamNGWaypoint(waypoint_{{waypoint.waypoint_id}}) {
+        drawDebug = "1";
+        directionalWaypoint = "0";
+        position = "{{waypoint.x}} {{waypoint.y}} {{waypoint.z}}";
+        scale = "{{waypoint.scale}}";
+        rotationMatrix = "1 0 0 0 1 0 0 0 1";
+        canSave = "1";
+        canSaveDynamicFields = "1";
+    };
+    {% endfor %}
+
+    new BeamNGVehicle(egovehicle) {
+        JBeam = "etk800";
+        color = "White";
+        colorPalette0 = "White";
+        colorPalette1 = "White";
+        renderDistance = "500";
+        renderFade = "0.1";
+        dataBlock = "default_vehicle";
+        position = "0 0 0.5";
+        rotationMatrix = "1 0 0 0 1 0 0 0 1";
+        scale = "1 1 1";
+        canSave = "1";
+        canSaveDynamicFields = "1";
+        annotation = "CAR";
+        isAIControlled = "1";
+        licenseText = "ASFAULT";
+    };
+};
