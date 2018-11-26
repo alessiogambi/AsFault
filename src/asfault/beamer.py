@@ -750,6 +750,7 @@ class TestRunner:
         distance = pos.distance(self.test.goal)
         return distance < c.ex.goal_distance
 
+    # This method computes if a given state is off track.
     def off_track(self, carstate):
         distance = carstate.get_centre_distance()
         if distance > c.ev.lane_width / 2.0:

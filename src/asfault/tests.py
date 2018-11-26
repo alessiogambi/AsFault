@@ -485,7 +485,10 @@ class CarState:
             l.error('Point is: %s', point.geom_type)
             raise ValueError('Not a point!')
         proj = path.project(point, normalized=True)
+        # print("Path project", proj.x, proj.y)
+        # This is a point?
         proj = path.interpolate(proj, normalized=True)
+        # print("Path interpolate", proj.x, proj.y)
         return proj
 
     def get_segment(self):
@@ -500,18 +503,35 @@ class CarState:
     def get_speed(self):
         return math.sqrt(self.vel_x ** 2 + self.vel_y ** 2)
 
+    # Distance from the center of the lane
     def get_centre_distance(self):
+        # This is the closest point on the center lane  from the observed state
         proj = self.get_path_projection()
-        pos = Point(self.pos_x, self.pos_y)
-        distance = math.fabs(pos.distance(proj))
+        # print("get_path_projection", proj.x, proj.y)
 
+        # This is the state point
+        pos = Point(self.pos_x, self.pos_y)
+        # print("Current point", pos.x, pos.y)
+
+        # Compute distance between points
+        distance = math.fabs(pos.distance(proj))
+        # print("distance", distance)
+
+        # Adjust ... TODO
         network = self.test.network
         nodes = network.get_nodes_at(pos)
+        # print("Nodes", len(nodes))
+        # for node in nodes:
+        #     print(node)
         if nodes:
-            distance -= c.ev.lane_width / 2.0
+            # Not sure how to initialize this manually
+            # distance -= c.ev.lane_width / 2.0
+            distance -= 4.0 / 2.0;
         else:
-            distance += c.ev.lane_width / 2.0
-
+            # Not sure how to initialize this manually
+            # distance += c.ev.lane_width / 2.0
+            distance += 4.0 / 2.0
+        # print("Final distance", distance)
         distance = math.fabs(distance)
         return distance
 
@@ -606,7 +626,9 @@ class TestExecution:
 
     def off_track(self, carstate):
         distance = carstate.get_centre_distance()
-        if distance > c.ev.lane_width / 2.0:
+        # Not sure how to initialize c
+        # if distance > c.ev.lane_width / 2.0:
+        if distance > 4.0 / 2.0:
             return True
 
         return False
