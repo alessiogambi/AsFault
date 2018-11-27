@@ -313,7 +313,7 @@ class PlotConfig:
 
 
 class ExecutionConfig:
-    BEAMNG_DIR = os.path.join(str(Path.home()), 'Documents/BeamNG.drive')
+    BEAMNG_DIR = os.path.join(str(Path.home()), 'Documents/BeamNG.research')
     LEVEL_DIR = 'levels/asfault'
     HOST = 'localhost'
     PORT = 32512
