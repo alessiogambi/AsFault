@@ -8,17 +8,23 @@ import csv
 import argparse
 import tempfile
 
+#
+# Do you see the `evolve(...)` in `app.py`?
+# That gets called before any `evolve` command (like `asfault evolve ext <blabla>`
+# and ensures a config is loaded and stuff
+# so if you make your analysis script callable through that you could rely on it
+#
+# If you put a function `foo` into that `app.py` and put `@evolve.command()` before it,
+# you can call that functino from cmdline with `asfault evolve foo`
+#
+# similar to how `def ext(...)` is declared
 
 # from itertools import zip
 
 from shapely.geometry import Point
 
-from asfault.tests import CarState
-from asfault.tests import RoadTest
-
-# TODO Check that this is actually the case !!
-global DEFAULT_LANE_WIDTH
-global TICK_DURATION
+from asfault.tests import CarState, RoadTest
+from asfault.app import ensure_environment, DEFAULT_ENV
 
 
 def pairwise(iterable):
@@ -124,13 +130,17 @@ def processTestFile( inputJSON, outputCSV ):
     obeDistance = []
     obePoints = []
 
+    # We always include a line, corresponding to O OBE, for each test so we can track also tests which do not have any
+    # Since everything default to 0 this shall not count when computing cumulative values
+    outputAnObeAsCSV(outputCSV, [roadTest.test_id, 0, 0, 0, 0, 0, 0])
+
     for idx, state_dict in enumerate(states):
         # Parse input
         carstate = CarState.from_dict(roadTest, state_dict)
 
         # Distance from Center of the lane
         distance = carstate.get_centre_distance();
-        if distance > DEFAULT_LANE_WIDTH / 2.0:
+        if distance > c.ev.lane_width / 2.0:
             if not isOBE:
                 # print("OBE started at", idx)
                 obeStartTick = idx
@@ -139,7 +149,7 @@ def processTestFile( inputJSON, outputCSV ):
             # Keep counting for current OBE
             obeLength += 1
 
-            obeDistance.append(distance - DEFAULT_LANE_WIDTH / 2.0)
+            obeDistance.append(distance - c.ev.lane_width / 2.0)
             # Get the Path Project... Whatever this is
             projected = carstate.get_path_projection()
             # print("projected ", projected )
@@ -154,7 +164,7 @@ def processTestFile( inputJSON, outputCSV ):
             # print("u", u)
             ## Double check u must be 1 - (DEFATUL_LANE_WIDTH / 2.0) away from measured and we shall get the
             # Boundary of the road which is the closest to measured
-            intensity = (distance - DEFAULT_LANE_WIDTH / 2.0)
+            intensity = (distance - c.ev.lane_width / 2.0)
             laneIntersect = Point( measured.x  + u.x * intensity , measured.y + u.y * intensity)
             # du = math.sqrt(u.x*u.x + u.y*u.y)
             # print( "DU ", du)
@@ -174,8 +184,6 @@ def processTestFile( inputJSON, outputCSV ):
                 obeCount += 1
                 # Compute OBE stats
                 obeEndTick = idx
-                # Compute Duration in ticks and time
-                totalOBEDuration = obeLength * TICK_DURATION / 1000;
                 # Compute Intensity using the 2-triangle approximation
                 totalOBEIntensity = computeIntensity(obePoints)
                 # AVG Distance
@@ -200,8 +208,6 @@ def processTestFile( inputJSON, outputCSV ):
         obeCount += 1
         # Compute OBE stats
         obeEndTick = idx
-        # Compute Duration in ticks and time
-        totalOBEDuration = obeLength * TICK_DURATION / 1000;
         # Compute Intensity using the 2-triangle approximation
         totalOBEIntensity = computeIntensity(obePoints)
         # AVG Distance
@@ -215,11 +221,9 @@ def processTestFile( inputJSON, outputCSV ):
               "Found ", obeCount, " OBEs while file reports", dictdump["execution"]["oobs"])
 
 
+# Load config
+ensure_environment(DEFAULT_ENV)
 
-# General setup
-DEFAULT_LANE_WIDTH =4.0 # meter
-# THE FOLLOWING IS WRONG
-TICK_DURATION = 250 # msec
 
 # Parsing CLI
 parser = argparse.ArgumentParser()
