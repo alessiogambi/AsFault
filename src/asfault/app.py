@@ -97,6 +97,7 @@ def bng(seed, budget, render, show):
 @click.option('--seed', default=milliseconds())
 @click.option('--generations', default=10)
 @click.option('--render', is_flag=True)
+@click.option('--show', is_flag=True)
 @click.option('--uniq', is_flag=True)
 @click.argument('ctrl')
 def ext(seed, generations, render, uniq, ctrl):
@@ -129,7 +130,7 @@ def ext(seed, generations, render, uniq, ctrl):
     estimator = TurnAndLengthEstimator()
 
     experiments.experiment_out(rng, evaluator, selector, estimator, factory,
-                               True, generations, render=render)
+                               True, generations, render=render, show=show)
 
 
 @evolve.command()
