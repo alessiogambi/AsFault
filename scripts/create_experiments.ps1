@@ -15,7 +15,7 @@ $now = $now -replace ":","-"
 
 $experiments = "$($experiments)\$($now)"
 
-$exp_cmd = "python .\roadgen\app.py write_experiment_envs"
+$exp_cmd = "C:\Users\Alessio\AsFault\.venv\Scripts\python.exe .\src\asfault\app.py write_experiment_envs"
 
 $fitness.Split(';') |
 Foreach-Object {
