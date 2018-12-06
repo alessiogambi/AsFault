@@ -376,7 +376,6 @@ def prepare_boundaries(network):
         root = roots.pop()
         left = get_street_boundary(network, root, right=False)
         right = get_street_boundary(network, root, right=True)
-    return [], []
     return left, right
 
 

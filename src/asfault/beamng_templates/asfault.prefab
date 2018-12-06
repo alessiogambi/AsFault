@@ -60,11 +60,11 @@ $ThisPrefab = new SimGroup() {
         canSave = "1";
         canSaveDynamicFields = "1";
 
-        Material = "line_dashed_short";
+        Material = "line_yellow";
         textureLength = "16";
 
         {% for node in divider.nodes %}
-        Node = "{{node.x}} {{node.y}} {{node.z}} {{node.width}}";
+        Node = "{{node.x}} {{node.y}} {{node.z}} 0.3";
         {% endfor %}
     };
     {% endfor %}
@@ -96,7 +96,7 @@ $ThisPrefab = new SimGroup() {
         textureLength = "16";
 
         {% for node in boundary.nodes %}
-        Node = "{{node.x}} {{node.y}} {{node.z}} {{node.width}}";
+        Node = "{{node.x}} {{node.y}} {{node.z}} 0.3";
         {% endfor %}
     };
     {% endfor %}
@@ -128,7 +128,7 @@ $ThisPrefab = new SimGroup() {
         textureLength = "16";
 
         {% for node in boundary.nodes %}
-        Node = "{{node.x}} {{node.y}} {{node.z}} {{node.width}}";
+        Node = "{{node.x}} {{node.y}} {{node.z}} 0.3";
         {% endfor %}
     };
     {% endfor %}
