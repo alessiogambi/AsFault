@@ -5,6 +5,7 @@ import numpy
 
 from beamngpy import BeamNGpy, Scenario, Vehicle, setup_logging
 from beamngpy.sensors import Camera, GForces, Electrics, Damage
+from docutils.nodes import transition
 
 from shapely.geometry import Point
 
@@ -29,11 +30,25 @@ def preprocess(img, brightness):
     return preprocessed
 
 
+def translate_steering(original_steering_value):
+    # Using a quadratic function might be too much
+    # newValue = -1.0 * (0.4 * pow(original_steering_value, 2) + 0.6 * original_steering_value + 0)
+    # This seems to over shoot. Maybe it's just a matter of speed and not amount of steering
+    newValue = -1.0 * original_steering_value;
+    linear_factor = 0.6
+    # Dump the controller to compensate oscillations in gentle curve
+    if abs(original_steering_value) < 1:
+        newValue = linear_factor * newValue
+
+    # print("Steering", original_steering_value, " -> ", newValue)
+    return newValue
+
+
 def main():
     setup_logging()
 
     # Gains to port TORCS actuators to BeamNG
-    steering_gain = -1.0  # - 0.25
+    # steering_gain = translate_steering()
     acc_gain = 0.5  # 0.4
     brake_gain = 1.0
     # BeamNG images are too bright for DeepDrive
@@ -48,7 +63,7 @@ def main():
 
     # Set up sensors
     resolution = (280, 210)
-    pos = (0.0, 1.6, 0.9)  # Left/Right, Front/Back, Above/Below
+    pos = (-0.5, 1.8, 0.8)  # Left/Right, Front/Back, Above/Below
     direction = (0, 1, 0)
     # direction = (180, 0, 180)
 
@@ -59,10 +74,10 @@ def main():
     # FOV 40, MAX_SPEED 50, 12 Hz Seems to be fine but drives slower
     # FOV 40, MAX_SPEED 80, 10 Hz Seems to be fine but drives slower
 
-    fov = 90
-    MAX_SPEED = 80
+    fov = 60
+    MAX_SPEED = 70
     MAX_FPS = 60
-    SIMULATION_STEP = 3
+    SIMULATION_STEP = 6
     # Running the controller at 20 hz makes experiments 3 to 4 times slower ! 5 minutes of simulations end up sucking 20 minutes !
     #
 
@@ -174,7 +189,7 @@ def main():
                     print("Grace period. Deep Driving still disengaged")
                     vehicle.ai_set_mode("manual")
                     vehicle.ai_set_waypoint("waypoint_goal")
-                    vehicle.ai_drive_in_lane(True)
+                    # vehicle.ai_drive_in_lane(True)
                     STATE = "GRACE"
             else:
                 if STATE != "NORMAL":
@@ -187,7 +202,7 @@ def main():
             if STATE == "NORMAL":
                 # Get commands from SHM
                 # Apply Control - not sure cutting at 3 digit makes a difference
-                steering = round(Memory.Data.Control.Steering * steering_gain, 3)
+                steering = round(translate_steering(Memory.Data.Control.Steering), 3)
                 throttle = round(Memory.Data.Control.Accelerating * acc_gain, 3)
                 brake = round(Memory.Data.Control.Breaking * brake_gain, 3)
 
