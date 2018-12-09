@@ -10,7 +10,7 @@ import tempfile
 
 from shapely.geometry import Point
 
-from asfault.tests import CarState, RoadTest
+from asfault.tests import CarState, RoadTest, TestExecution
 from asfault.app import ensure_environment, DEFAULT_ENV
 from asfault.tests import RoadTest
 from asfault import config as c
@@ -33,6 +33,9 @@ def pairwise(iterable):
 
 class DataAnalyzer:
 
+    roadTest = None
+    testExecution = None
+
     def __init__(self):
         ensure_environment(DEFAULT_ENV)
 
@@ -48,8 +51,23 @@ class DataAnalyzer:
         """
         return math.fabs((a.x*(b.y-c.y) + b.x*(c.y-a.y)+c.x*(a.y-b.y))/2)
 
+    def computeIntensity(self, obePoints):
+        """
+        Compute intensity using polygon
 
-    def computeIntensity( self, obePoints ):
+        :param obePoints:
+        :return:
+        """
+
+        # Create the convex polygon from the set of OBE observations
+
+        # Order OBE by Path
+
+        print( "Polyline", self.roadTest.get_path_polyline() );
+
+        return self.computeIntensityWithTriangles(obePoints)
+
+    def computeIntensityWithTriangles( self, obePoints ):
         """
         The intensity of an OBE is defined as the area outside the lane it creates. We approximate this by means of two
         triangles defines by four points: the measured state and the lane intersect of two consecutive out-of-lane
@@ -108,8 +126,6 @@ class DataAnalyzer:
         :return:
         """
 
-        print("Process test file ", os.path.abspath(inputJSON), "and store data into", os.path.abspath(outputCSV))
-
         if outputCSV is None:
             # The following create a file nevertheless, but it is empty
             outputCSV = tempfile.mkstemp(suffix='.csv')[1]
@@ -123,14 +139,17 @@ class DataAnalyzer:
                 self.createOutputCSV(outputCSV, ["testID", "obeID", "obeStartTick", "obeEndTick", "obeLength", "avgDistance",
                                            "totalOBEIntensity"])
 
+        print("Process test file ", os.path.abspath(inputJSON), "and store data into", os.path.abspath(outputCSV))
+
         with open(inputJSON) as handle:
             dictdump = json.loads(handle.read())
 
         # Parse the JSON to RoadTest
-        roadTest= RoadTest.from_dict(dictdump)
+        self.roadTest= RoadTest.from_dict(dictdump)
+        self.testExecution = TestExecution.from_dict(self.roadTest, dictdump["execution"])
 
         # Extract the list of logged states from the execution
-        states = dictdump["execution"]["states"]
+        # states = dictdump["execution"]["states"]
 
         isOBE = False
         obeStartTick = -1
@@ -142,29 +161,36 @@ class DataAnalyzer:
 
         # We always include a line, corresponding to O OBE, for each test so we can track also tests which do not have any
         # Since everything default to 0 this shall not count when computing cumulative values
-        self.outputAnObeAsCSV(outputCSV, [roadTest.test_id, 0, 0, 0, 0, 0, 0])
+        self.outputAnObeAsCSV(outputCSV, [self.roadTest.test_id, 0, 0, 0, 0, 0, 0])
 
         for idx, state_dict in enumerate(states):
-            # Parse input
-            carstate = CarState.from_dict(roadTest, state_dict)
 
+
+
+            # Parse input
+            carstate = CarState.from_dict(self.roadTest, state_dict)
+
+            if self.roadTest.off
             # Distance from Center of the lane
             distance = carstate.get_centre_distance();
             if distance > c.ev.lane_width / 2.0:
                 if not isOBE:
-                    # print("OBE started at", idx)
+                    print("OBE started at", idx, "with distance", distance)
                     obeStartTick = idx
+                else:
+                    print("Keep going with OBE at", idx, "With distance", distance)
 
-                # print("Keep going with OBE at", idx, "With distance", distance)
                 # Keep counting for current OBE
                 obeLength += 1
 
                 obeDistance.append(distance - c.ev.lane_width / 2.0)
+
                 # Get the Path Project... Whatever this is
                 projected = carstate.get_path_projection()
                 # print("projected ", projected )
                 # https://math.stackexchange.com/questions/175896/finding-a-point-along-a-line-a-certain-distance-away-from-another-point
                 measured = Point(carstate.pos_x, carstate.pos_y)
+
                 # print("measured", measured)
                 # Compute the norm v / || v ||
                 distV = math.fabs(projected.distance(measured))
@@ -199,7 +225,7 @@ class DataAnalyzer:
                     # AVG Distance
                     avgDistance = sum(obeDistance) / len(obeDistance)
                     # Output to console
-                    self.outputAnObeAsCSV(outputCSV, [roadTest.test_id, obeCount, obeStartTick, obeEndTick, obeLength,
+                    self.outputAnObeAsCSV(outputCSV, [self.roadTest.test_id, obeCount, obeStartTick, obeEndTick, obeLength,
                                      avgDistance, totalOBEIntensity])
                     # RESET STATE
                     # isOBE = False
@@ -223,7 +249,7 @@ class DataAnalyzer:
             # AVG Distance
             avgDistance = sum(obeDistance) / len(obeDistance)
             # Output to console
-            self.outputAnObeAsCSV(outputCSV, [roadTest.test_id, obeCount, obeStartTick, obeEndTick, obeLength, avgDistance,
+            self.outputAnObeAsCSV(outputCSV, [self.roadTest.test_id, obeCount, obeStartTick, obeEndTick, obeLength, avgDistance,
                              totalOBEIntensity])
         # Double check that obeCount matches the reported count
         if obeCount != dictdump["execution"]["oobs"]:
@@ -237,13 +263,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-csv', help='Output CSV')
     parser.add_argument('--input-folder', help='Input folder where to find - non recursively - the test results')
+    parser.add_argument('--input-json', help='Input JSON')
 
     args = parser.parse_args()
     da = DataAnalyzer()
 
     # Process all the files in the input-folder
-    for inputJSON in glob.glob('/'.join([args.input_folder, 'test_*.json'])):
-        da.processTestFile(inputJSON,args.output_csv)
+    if args.input_json is not None:
+        da.processTestFile(args.input_json , args.output_csv)
+    else:
+        for inputJSON in glob.glob('/'.join([args.input_folder, 'test_*.json'])):
+            da.processTestFile(inputJSON,args.output_csv)
 
 if __name__ == "__main__":
     main()
