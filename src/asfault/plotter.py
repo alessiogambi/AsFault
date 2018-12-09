@@ -263,10 +263,22 @@ class TestPlotter:
     def plot_car_trace(self, trace):
         for state in trace:
             pos = Point(state.pos_x, state.pos_y)
-            self.add_circle(pos.x, pos.y,
-                            c.ev.lane_width * c.pt.factor_path_node,
-                            c.pt.colour_path_nodes)
+            # Can we highlight if this is an OBE ?
+            # Distance from Center of the lane
+            distance = state.get_centre_distance();
+            if distance > c.ev.lane_width / 2.0:
+                # Mark OBE in red
+                self.add_circle(pos.x, pos.y,
+                                c.ev.lane_width * c.pt.factor_path_node,
+                                c.pt.colour_goal)
+            else:
+                self.add_circle(pos.x, pos.y,
+                                c.ev.lane_width * c.pt.factor_path_node,
+                                c.pt.colour_path_nodes)
+
+
             proj = state.get_path_projection()
+
             if False and proj:
                 line = LineString([pos, proj])
                 self.add_line(line,

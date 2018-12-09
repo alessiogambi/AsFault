@@ -22,22 +22,36 @@ from asfault.beamer import RESULT_SUCCESS
 class LogAnalyzer:
 
     # Regex used to match relevant loglines (in this case, a specific IP address)
-    execution_regex = re.compile(r".*Executing Test#(\d+) .*$")
+
+    # This identify a test execution
+    test_execution_regex = re.compile(r".*Executing Test#(\d+) .*$")
+
+    # This mark the beginning of the evolution step
+    # execution_regex = re.compile(f".*Evaluating test suite after evolution step..*$")
+
+    # This mark the end of the (previous) evolution step
     evolution_regex = re.compile(r".*Test evolution step: (\d+)")
 
     POPULATION_SIZE = 25
+    GENERATION_LIMIT = -1
+
     evolutionStep = 0
     test_executions_folder = None
     test_final_folder = None
 
-    def __init__(self):
+    def __init__(self, GENERATION_LIMIT=-1):
         ensure_environment(DEFAULT_ENV)
+        self.GENERATION_LIMIT = GENERATION_LIMIT
 
     def getFitnessForTest(self, testID):
         inputJSON = '/'.join([self.test_executions_folder, "test_"+testID.zfill(4)+".json"])
         # Double check that this file exists under
         if not os.path.isfile(inputJSON):
             inputJSON = '/'.join([self.test_final_folder, "test_" + testID.zfill(4) + ".json"])
+
+        if not os.path.isfile(inputJSON):
+            print("I cannot find the file ", inputJSON, "to compute the fitness value!")
+            raise FileNotFoundError("File", inputJSON, "does not exist")
 
         with open(inputJSON) as handle:
             dictdump = json.loads(handle.read())
@@ -56,68 +70,55 @@ class LogAnalyzer:
         self.test_executions_folder = '/'.join([os.path.dirname(input_log), 'output/execs'])
         self.test_final_folder = '/'.join([os.path.dirname(input_log), 'output/final'])
 
-        # Initial state
-        state = "Execution"
-
-        # Initial population
+        # Current population
         population = []
 
-        # Population in each step of the evolution
+        # Populations in each step of the evolution
         populations = []
 
         # Open input file in 'read' mode
         with open(input_log, "r") as in_file:
-            # Loop over each log line
             for line in in_file:
 
-                test_execution_match = self.execution_regex.match(line)
-                test_evolution_match = self.evolution_regex.match(line)
+                test_execution_match = self.test_execution_regex.match(line)
+                evolution_match = self.evolution_regex.match(line)
 
-                if state == "Execution":
-                    if test_execution_match is not None:
-                        # Extract test ID
-                        testID = test_execution_match.group(1)
-                        fitness = self.getFitnessForTest(testID)
-                        # print("line", line)
-                        # print("Adding ", testID, "to population")
-                        population.append((testID, fitness))
+                if evolution_match is not None:
+                    # print("Evolution Step Completed")
 
-                    if test_evolution_match is not None:
-                        state = "Evolution"
-                        # Check how many tests are in the population
-                        if len(population) < 25:
-                            # print("***** Missing ", (25 - len(population)), " tests.")
-                            # Take the last element in the populations list, which is the first from right, i.e., -1
-                            sorted_population = sorted(populations[-1], key=lambda x: x[1], reverse=True)
-                            # print("Sorted population: ", sorted_population);
-                            for idx, val in enumerate(sorted_population):
-                                # print("Adding ", idx, val, "to population")
-                                population.append(val)
-                                if len(population) == 25:
-                                    break
+                    # Check how many tests are in the population
+                    if len(population) < 25:
+                        ## TODO Count how many tests are rejected at every cycle !
+                        # print("***** Missing ", (25 - len(population)), " tests.")
+                        # Take the last element in the populations list, which is the first from right, i.e., -1
+                        sorted_population = sorted(populations[-1], key=lambda x: x[1], reverse=True)
+                        # print("Sorted population: ", sorted_population);
+                        for idx, val in enumerate(sorted_population):
+                            # print("Adding ", idx, val, "to population")
+                            population.append(val)
+                            if len(population) == 25:
+                                break
+                    # At this point we have the population at evolution step and we store it
+                    populations.append(population)
+                    # print("Simulated evolution step", len(populations))
 
-                        populations.append(population)
-                        print("Simulated evolution step", len(populations))
+                    # Reset counters and states
+                    population = []
 
-                if state == "Evolution":
-                    if test_execution_match is not None:
-                        # Create a new population
-                        population = []
-                        # Extract test ID
-                        testID = test_execution_match.group(1);
-                        fitness = self.getFitnessForTest(testID)
-                        # print("line", line)
-                        # print("Adding ", testID, "to population")
-                        population.append((testID, fitness))
-                        # print(len(population))
-                        state = "Execution"
+                elif test_execution_match is not None:
+                    # print("Test Execution Found")
+                    # Extract test ID
+                    testID = test_execution_match.group(1);
+                    fitness = self.getFitnessForTest(testID)
+                    # print("Adding ", testID, "to population with fitness", fitness)
+                    population.append((testID, fitness))
 
-        # At this point the latest element of populations contains the final test suite
-        # print("FINAL TEST SUITE:")
-        # # Present order by testID
-        # for idx, val in enumerate(sorted(populations[-1], key=lambda x: x[0], reverse=False)):
-        #     print(val)
-        # Population sorted by Test ID, not that at this point matters too much...
+                # We cap the generation since many test files are missing !
+                if self.GENERATION_LIMIT > -1 and len(populations) >= self.GENERATION_LIMIT:
+                    print("Reached GENERATION_LIMIT", self.GENERATION_LIMIT)
+                    return sorted(populations[-1], key=lambda x: x[0], reverse=False)
+
+        print("Final GENERATION count", len(populations))
         return sorted(populations[-1], key=lambda x: x[0], reverse=False)
 
 def main():

@@ -1,3 +1,4 @@
+import sys
 import argparse
 import glob
 import re
@@ -26,19 +27,21 @@ from setuptools.command.install import install
 # EXPERIMENT_LOCAL_FOLDER /2018-09-06T08-02-03/000/random/experiment.log
 
 asfault_regex = re.compile(r".*_lanedist_.*$")
-random_regex = re.compile(r".*random.*$")
+random_regex = re.compile(r".*_random_.*$")
 # TODO Those might require some adjustment
-single_regex = re.compile(r".*single.*$")
-multi_regex = re.compile(r".*multi.*$")
+single_regex = re.compile(r".*single.*$", re.IGNORECASE)
+multi_regex = re.compile(r".*multi.*$", re.IGNORECASE)
 
 tiny_map_regex = re.compile(r".*_0500_.*$")
 small_map_regex = re.compile(r".*_1000_.*$")
 large_map_regex = re.compile(r".*_2000_.*$")
 
 
-
-
 def main():
+    # Cannot use execution bucket as unique ID for the experiment since this is reset day by day
+    # Also the global counter might not be perfect !
+    global_experiment_id = 0
+
     # Parse the CLI
     parser = argparse.ArgumentParser()
     parser.add_argument('--root-folder', help='Input Log File')
@@ -50,48 +53,88 @@ def main():
 
     # Process all the execution.log files found under root_folder
     for experiment_log_file in glob.iglob('/'.join([root_folder, '**', 'experiment.log']), recursive=True):
-        print("Found", experiment_log_file )
-        la = LogAnalyzer()
-        final_test_suite = la.process_log(experiment_log_file )
-        for test in final_test_suite:
-            testID = test[0];
-            print("Processing Test ", testID)
+        global_experiment_id += 1
+        try:
+            print("Found", experiment_log_file )
+
+            ## TEMPORARY FILTER
+            if not asfault_regex.match(experiment_log_file):
+                print("Skip (no asfault)")
+                continue
+
+            if not small_map_regex.match(experiment_log_file):
+                print("Skip (no small)")
+                continue
+
+            if not multi_regex.match(experiment_log_file):
+                print("Skip (no multi)")
+                continue
+
+            # CAP THE SIMULATION
+            la = LogAnalyzer(GENERATION_LIMIT=40)
             da = DataAnalyzer()
-            inputJSON= os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
-                                  'output', 'execs', ''.join(['test_', testID.zfill(4), '.json']));
 
-            # Check if exists otherwise look under /final
-            if not os.path.isfile(inputJSON):
-                inputJSON = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
-                                         'output', 'final', ''.join(['test_', testID.zfill(4), '.json']));
+            final_test_suite = la.process_log(experiment_log_file )
 
-            # Go two directories above the log file and get the folder name.
-            parent = os.path.split(os.path.abspath(experiment_log_file))[0]
-            gran_parent = os.path.split(os.path.abspath(parent))[0]
-            executionbucket=os.path.split(os.path.abspath(gran_parent))[1]
+            for test in final_test_suite:
+                testID = test[0];
+                # print("Processing Test ", testID)
+                inputJSON= os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
+                                        'output', 'execs', ''.join(['test_', testID.zfill(4), '.json']));
 
-            outputCSV = None
-            if random_regex.match( experiment_log_file ):
-                outputCSV = '.'.join(['random_single_large', executionbucket,'csv'])
-            elif asfault_regex.match( experiment_log_file ) :
-                cardinality = "multi"
-                mapSize = "large"
+                # Check if exists otherwise look under /final
+                if not os.path.isfile(inputJSON):
+                    inputJSON = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
+                                             'output', 'final', ''.join(['test_', testID.zfill(4), '.json']));
 
-                if single_regex.match( experiment_log_file, re.IGNORECASE):
-                    cardinality = "single"
+                # Go two directories above the log file and get the folder name.
+                parent = os.path.split(os.path.abspath(experiment_log_file))[0]
+                gran_parent = os.path.split(os.path.abspath(parent))[0]
+                # executionbucket=os.path.split(os.path.abspath(gran_parent))[1]
+
+                # outputCSV = None
+                cardinality = None
+                generator = None
+                # mapSize = None
+
+                if random_regex.match( experiment_log_file ):
+                    generator = "random"
+                elif asfault_regex.match( experiment_log_file ) :
+                    generator = "asfault"
+                else:
+                    print("ERROR: Unknown Generator for", experiment_log_file, " Skipping it!")
+                    continue
+
+                if single_regex.match( str(gran_parent), re.IGNORECASE):
+                        cardinality = "single"
+                elif multi_regex.match( str(gran_parent), re.IGNORECASE):
+                        cardinality = "multi"
+                else:
+                    print("ERROR: Unknown Cardinality for", gran_parent, " Skipping it!")
+                    continue
+
 
                 if tiny_map_regex.match(experiment_log_file):
                     mapSize = "tiny"
                 elif small_map_regex.match( experiment_log_file):
                     mapSize = "small"
+                elif large_map_regex.match( experiment_log_file ):
+                    mapSize = "large"
+                else:
+                    print("ERROR: Unknown map size for", experiment_log_file, " Skipping it!")
+                    continue
 
-                outputCSV = '.'.join([ '_'.join(['asfault',cardinality,mapSize]), executionbucket, 'csv'])
+                outputCSV = '.'.join([ '_'.join([generator,cardinality,mapSize, str(global_experiment_id)]), 'csv'])
 
-
-            da.processTestFile(inputJSON, outputCSV)
-
-
-
+                # This might fail because FILEs are somehow missing so we need to trap the error
+                try:
+                    da.processTestFile(inputJSON, outputCSV)
+                except:
+                    print("There was an error processing TEST", inputJSON)
+                    # This invalidate the entire experimentss
+                    raise
+        except Exception as e:
+            print("Experiment RUN ", experiment_log_file, "is INVALID !", e)
 
 if __name__ == "__main__":
     main()
