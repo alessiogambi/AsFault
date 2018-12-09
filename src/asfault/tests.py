@@ -549,6 +549,235 @@ class CarState:
             return proj
         return None
 
+class OBE:
+    start = -1
+    end = -1
+    states = None
+    test_execution = None
+
+    def __init__(self, start, end, states, test_execution):
+        self.start = start
+        self.end = end
+
+        # If I use extend instead of the assignmet, this state variable is shared among all the OBE instances ?
+        self.states = states
+        self.test_execution = test_execution
+
+    def get_start(self):
+        return self.start
+
+    def get_end(self):
+        return self.end
+
+    def get_duration(self):
+        return len(self.states)
+
+    def get_cumulative_distance(self):
+        """
+        Sum the distance across the entire duration of the OBE.
+
+        This is an approximate measure of OBE intensity: it does not include time or duration aspects, however,
+        given the physical properties of the system this might not be a problem.
+        This does not include also the shape of the road.
+
+        That is cars cannot move more than a distance in a give time.
+
+        :return:
+        """
+        cumul_dist = 0
+        for state in self.states:
+            cumul_dist += state.get_centre_distance()
+            # print( cumul_dist )
+        return cumul_dist
+
+    def get_average_distance(self):
+        """
+        Avg distance outside the road in the OBE.
+
+        This is an approximate measure of OBE intensity: it does not include time or duration aspects, however,
+        given the physical properties of the system this might not be a problem.
+        This does not include also the shape of the road.
+
+        That is cars cannot move more than a distance in a give time.
+
+        :return:
+        """
+        return self.get_cumulative_distance()/len(self.states)
+
+
+    def get_cumulative_intensity(self):
+        """
+        This is the area outside the road
+        :return:
+        """
+        raise NotImplementedError
+
+        # TODO Compute this !
+        #
+        # for idx, state_dict in enumerate(states):
+        #
+        #
+        #
+        #     # Parse input
+        #     carstate = CarState.from_dict(self.roadTest, state_dict)
+        #
+        #     if self.roadTest.off
+        #     # Distance from Center of the lane
+        #     distance = carstate.get_centre_distance();
+        #     if distance > c.ev.lane_width / 2.0:
+        #         if not isOBE:
+        #             print("OBE started at", idx, "with distance", distance)
+        #             obeStartTick = idx
+        #         else:
+        #             print("Keep going with OBE at", idx, "With distance", distance)
+        #
+        #         # Keep counting for current OBE
+        #         obeLength += 1
+        #
+        #         obeDistance.append(distance - c.ev.lane_width / 2.0)
+        #
+        #         # Get the Path Project... Whatever this is
+        #         projected = carstate.get_path_projection()
+        #         # print("projected ", projected )
+        #         # https://math.stackexchange.com/questions/175896/finding-a-point-along-a-line-a-certain-distance-away-from-another-point
+        #         measured = Point(carstate.pos_x, carstate.pos_y)
+        #
+        #         # print("measured", measured)
+        #         # Compute the norm v / || v ||
+        #         distV = math.fabs(projected.distance(measured))
+        #         u = Point( ( projected.x - measured.x) / distV, (projected.y - measured.y) / distV );
+        #         # U is a unitary vector which points to projected from measured
+        #         # now we move distance -
+        #         # print("u", u)
+        #         ## Double check u must be 1 - (DEFATUL_LANE_WIDTH / 2.0) away from measured and we shall get the
+        #         # Boundary of the road which is the closest to measured
+        #         intensity = (distance - c.ev.lane_width / 2.0)
+        #         laneIntersect = Point( measured.x  + u.x * intensity , measured.y + u.y * intensity)
+        #         # du = math.sqrt(u.x*u.x + u.y*u.y)
+        #         # print( "DU ", du)
+        #         # print("Lane Intersect ", laneIntersect)
+        #         # Accumulate the Points to compute the Intensity/Area
+        #         obePoints.append((measured, laneIntersect))
+        #         # else:
+        #         # print("Got a new OBE at" ,idx, "With distance", distance)
+        #         # Mark the beginning of a new OBE
+        #         #     obeLength += 1
+        #         #     obeDistance.append(distance)
+        #         isOBE = True;
+        #     # Car is in lane
+        #     else:
+        #         if isOBE:
+        #             # This mark the end of the OBE. Print a CSV line
+        #             obeCount += 1
+        #             # Compute OBE stats
+        #             obeEndTick = idx
+        #             # Compute Intensity using the 2-triangle approximation
+        #             totalOBEIntensity = self.computeIntensity(obePoints)
+        #             # AVG Distance
+        #             avgDistance = sum(obeDistance) / len(obeDistance)
+        #             # Output to console
+        #             self.outputAnObeAsCSV(outputCSV, [self.roadTest.test_id, obeCount, obeStartTick, obeEndTick, obeLength,
+        #                              avgDistance, totalOBEIntensity])
+        #             # RESET STATE
+        #             # isOBE = False
+        #             obeStartTick = -1
+        #             obeEndTick = -1
+        #             obeLength = 0
+        #             obeDistance = []
+        #             obePoints = []
+        #         # else:
+        #             # Do nothing
+        #         isOBE = False;
+        #
+        # # At the end if isOBE is still on we report one last OBE
+        # if isOBE:
+        #     # This mark the end of the OBE. Print a CSV line
+        #     obeCount += 1
+        #     # Compute OBE stats
+        #     obeEndTick = idx
+        #     # Compute Intensity using the 2-triangle approximation
+        #     totalOBEIntensity = self.computeIntensity(obePoints)
+        #     # AVG Distance
+        #     avgDistance = sum(obeDistance) / len(obeDistance)
+        #     # Output to console
+        #     self.outputAnObeAsCSV(outputCSV, [self.roadTest.test_id, obeCount, obeStartTick, obeEndTick, obeLength, avgDistance,
+        #                      totalOBEIntensity])
+        # # Double check that obeCount matches the reported count
+        # if obeCount != dictdump["execution"]["oobs"]:
+        #     print("OBE count does not match for test ", dictdump["test_id"], ". (file ", inputJSON, ")",
+        #           "Found ", obeCount, " OBEs while file reports", dictdump["execution"]["oobs"])
+
+    def __computeIntensity(self, obePoints):
+        """
+        Compute intensity using polygon
+
+        :param obePoints:
+        :return:
+        """
+
+        # Create the convex polygon from the set of OBE observations
+
+        # Order OBE by Path
+
+        print("Polyline", self.roadTest.get_path_polyline());
+
+        return self.computeIntensityWithTriangles(obePoints)
+
+    def __computeIntensityWithTriangles(self, obePoints):
+        """
+        The intensity of an OBE is defined as the area outside the lane it creates. We approximate this by means of two
+        triangles defines by four points: the measured state and the lane intersect of two consecutive out-of-lane
+        measurements.
+
+        :param obePoints:
+        :return:
+        """
+        # print(len(obePoints), " OBEs")
+        # print("Expected count", (len(obePoints) - 1))
+        count = 0
+        obeIntensity = 0
+        # Note the use of pairwise
+        for obe1, obe2 in pairwise(obePoints):
+            # print(obe1[0].x, "->", obe2[0].x)
+            # Computing the v12 between obes. OBE[0] is the measured state/point while OBE[1] is the lane intersect point
+            A1 = computeAreaOfTriangle(obe1[0], obe1[1], obe2[1])
+            A2 = computeAreaOfTriangle(obe1[0], obe2[0], obe2[1])
+            # print("Adding A1 ", A1)
+            # print("Adding A2 ", A2)
+            obeIntensity += A1 + A2
+            count += 1
+
+        # print( "final count", count )
+        return obeIntensity
+
+
+# Utility method for the entire file ?
+def computeAreaOfTriangle(self, a, b, c):
+    """
+    Compute the area of triangle given coordinates of its vertices as per:
+    https://www.mathopenref.com/coordtrianglearea.html
+
+    :param a:
+    :param b:
+    :param c:
+    :return:
+    """
+    return math.fabs((a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) / 2)
+
+
+def pairwise(iterable):
+    """
+    Return a sliding window of size n over the input iterable, as per:
+    https://stackoverflow.com/questions/38151445/iterate-over-n-successive-elements-of-list-with-overlapping
+
+    s -> (s0,s1), (s2,s3), (s4, s5), ...
+
+    :param iterable:
+    :return:
+    """
+    # a = iter(iterable)
+    return list(zip(iterable, iterable[1:]))  # zip(a, a)
+
 
 class TestExecution:
     @staticmethod
@@ -626,12 +855,39 @@ class TestExecution:
 
     def off_track(self, carstate):
         distance = carstate.get_centre_distance()
-        # Not sure how to initialize c
-        # if distance > c.ev.lane_width / 2.0:
-        if distance > 4.0 / 2.0:
+        if distance > c.ev.lane_width / 2.0:
             return True
 
         return False
+
+    def get_obes(self):
+        obes = []
+
+        cur_states = []
+        cur_start = -1
+
+        # State variable
+        is_obe = False
+
+        for idx, state in enumerate(self.states):
+            is_off_track = self.off_track(state)
+            if is_off_track:
+                if not is_obe:
+                    # Start the OBE
+                    is_obe = True
+                    cur_start = idx
+                # Accumulate OBE states
+                cur_states.append(state)
+            else:
+                is_obe = False
+                if len(cur_states) > 0:
+                    # Store the OBE int the list of OBEs
+                    obes.append(OBE(cur_start, idx, cur_states, self))
+                    # Reset cur_*
+                    cur_states = []
+                    cur_start = -1
+
+        return obes
 
     def count_oobs(self):
         oob_lens = []
