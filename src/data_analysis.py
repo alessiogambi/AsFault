@@ -23,6 +23,10 @@ class DataAnalyzer:
 
     roadTest = None
     testExecution = None
+    HEADER = ["testID", "obe_id", "obe_start", "obe_end", "obe_duration", "avg_distance", "cumul_distance"]
+
+    def __get_empty_obe(self):
+        return [self.roadTest.test_id, 0, 0, 0, 0, 0, 0]
 
     def __init__(self):
         ensure_environment(DEFAULT_ENV)
@@ -48,6 +52,19 @@ class DataAnalyzer:
 
         csvFile.close()
 
+    def get_obes(self, inputJSON):
+        with open(inputJSON) as handle:
+            dictdump = json.loads(handle.read())
+        handle.close()
+
+        # Parse the JSON to RoadTest
+        self.roadTest= RoadTest.from_dict(dictdump)
+        # Execution counts the OBE
+        self.testExecution = TestExecution.from_dict(self.roadTest, dictdump["execution"])
+        #
+        return self.testExecution.get_obes()
+
+
     def processTestFile(self, inputJSON, outputCSV ):
         """
         Analyze a JSON test output file from AsFault and generate a line (a CSV) of its stats which include
@@ -65,14 +82,12 @@ class DataAnalyzer:
             # The following create a file nevertheless, but it is empty
             outputCSV = tempfile.mkstemp(suffix='.csv')[1]
             print("Output CSV Not provided use temp file", outputCSV, "instead")
-            self.createOutputCSV(outputCSV, ["testID", "obeID", "obeStartTick", "obeEndTick", "obeLength", "avgDistance",
-                                           "totalOBEIntensity"])
+            self.createOutputCSV(outputCSV, self.HEADER)
         else:
             if os.path.isfile(outputCSV):
                 print("File ", outputCSV, "exists. Append to it")
             else:
-                self.createOutputCSV(outputCSV, ["testID", "obeID", "obeStartTick", "obeEndTick", "obeLength", "avgDistance",
-                                           "totalOBEIntensity"])
+                self.createOutputCSV(outputCSV, self.HEADER)
 
         print("Process test file ", os.path.abspath(inputJSON), "and store data into", os.path.abspath(outputCSV))
 
@@ -88,7 +103,7 @@ class DataAnalyzer:
         if len(obes) == 0:
             # We always include a line, corresponding to O OBE, for each test so we can track also tests which do not have any
             # Since everything default to 0 this shall not count when computing cumulative values
-            self.outputAnObeAsCSV(outputCSV, [self.roadTest.test_id, 0, 0, 0, 0, 0, 0])
+            self.outputAnObeAsCSV(outputCSV, self.__get_empty_obe())
         else:
             # Process the OBEs
             for idx, obe in enumerate(obes):
@@ -97,7 +112,7 @@ class DataAnalyzer:
 
                 # Output to console
                 self.outputAnObeAsCSV(outputCSV, [self.roadTest.test_id, idx, obe.get_start(), obe.get_end(), obe.get_duration(),
-                         obe.get_cumulative_distance(), obe.get_average_distance()])
+                         obe.get_average_distance(), obe.get_cumulative_distance()])
 
         if len(obes) != dictdump["execution"]["oobs"]:
             print("OBE count does not match for test ", dictdump["test_id"], ". (file ", inputJSON, ")",

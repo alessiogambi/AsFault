@@ -525,12 +525,10 @@ class CarState:
         #     print(node)
         if nodes:
             # Not sure how to initialize this manually
-            # distance -= c.ev.lane_width / 2.0
-            distance -= 4.0 / 2.0;
+            distance -= c.ev.lane_width / 2.0
         else:
             # Not sure how to initialize this manually
-            # distance += c.ev.lane_width / 2.0
-            distance += 4.0 / 2.0
+            distance += c.ev.lane_width / 2.0
         # print("Final distance", distance)
         distance = math.fabs(distance)
         return distance
@@ -586,8 +584,8 @@ class OBE:
         """
         cumul_dist = 0
         for state in self.states:
-            cumul_dist += state.get_centre_distance()
-            # print( cumul_dist )
+            # We count only the distance outside the lane !
+            cumul_dist += (state.get_centre_distance() - (c.ev.lane_width / 2.0))
         return cumul_dist
 
     def get_average_distance(self):
@@ -602,7 +600,7 @@ class OBE:
 
         :return:
         """
-        return self.get_cumulative_distance()/len(self.states)
+        return self.get_cumulative_distance()/self.get_duration()
 
 
     def get_cumulative_intensity(self):
