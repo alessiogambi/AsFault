@@ -1,10 +1,11 @@
-import sys
+import hashlib
 import argparse
 import glob
 import re
 import os.path
+import csv
 
-from log_analysis import LogAnalyzer
+from log_analysis import LogAnalyzer, PopulationStats
 from data_analysis import DataAnalyzer
 
 # This script assumes the following folder organization:
@@ -36,103 +37,219 @@ tiny_map_regex = re.compile(r".*_0500_.*$")
 small_map_regex = re.compile(r".*_1000_.*$")
 large_map_regex = re.compile(r".*_2000_.*$")
 
+def get_hash(file):
+    """
+        We use hash to uniquely identify experiments so we can pause and resume computations
+    """
+    BLOCKSIZE = 65536
+    hasher = hashlib.md5()
+    with open(file, 'rb') as afile:
+        buf = afile.read(BLOCKSIZE)
+        while len(buf) > 0:
+            hasher.update(buf)
+            buf = afile.read(BLOCKSIZE)
+    return hasher.hexdigest()
 
+
+def get_input_json_for_test(experiment_log_file, testID):
+    inputJSON = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
+                             'output', 'execs', ''.join(['test_', testID.zfill(4), '.json']));
+
+    # Check if the file exists under 'execs' folder, otherwise look under 'final' folder
+    if not os.path.isfile(inputJSON):
+        inputJSON = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
+                                 'output', 'final', ''.join(['test_', testID.zfill(4), '.json']));
+    return inputJSON
+
+
+def do_timing_analysis(output_file, experiment_log_file):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+    populations = log_analyzer.process_log(experiment_log_file)
+
+    print(">> Running Timing Analysis")
+    with open(output_file, 'w') as csvFile:
+        writer = csv.writer(csvFile)
+        # Write Header
+        writer.writerow(["evolution_step",
+                         "evolved_individuals",
+                         "padded_individuals",
+                         "generation_time",
+                         "execution_time"])
+        for idx, population in enumerate(populations):
+            writer.writerow([idx,
+                             len(population.get_evolved_individuals()),
+                             len(population.get_padded_individuals()),
+                             population.get_test_generation_time(),
+                             population.get_test_execution_time()])
+        csvFile.close()
+
+
+def do_fitness_obe_analysis(output_file, experiment_log_file):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+    populations = log_analyzer.process_log(experiment_log_file)
+
+    print(">> Running fitness obe analysis")
+    with open(output_file, 'w') as csvFile:
+        try:
+            writer = csv.writer(csvFile)
+            # Write Header
+            writer.writerow(["evolution_step",
+                             "cumulative_obe",
+                             "cumulative_fitness"])
+
+            # For each population get cumulative OBE count and fitness value
+            for idx, population in enumerate(populations):
+                # print("Processing population", idx)
+                cumulative_fitness_value = 0
+                cumulative_OBE = 0
+                # Accumulate values
+                for test in population.get_individuals():
+                    testID = test[0]
+                    fitness = log_analyzer.getFitnessForTest(testID)
+                    # Compute OBEs
+                    data_analyzer = DataAnalyzer()
+                    input_json = get_input_json_for_test(experiment_log_file, testID)
+                    obe_count = len(data_analyzer.get_obes(input_json))
+
+                    cumulative_fitness_value += fitness
+                    cumulative_OBE += obe_count
+
+                    # print("Test ID", testID, obe_count, fitness)
+
+                # At this point we can store to CSV FILE the entry for the population
+                # print("Population", idx, cumulative_OBE, cumulative_fitness_value)
+                writer.writerow([idx, cumulative_OBE, cumulative_fitness_value])
+        except:
+            print("There was an error processing TEST from", input_json)
+            # This invalidate the entire experiment
+            # Is this necessary of using the with keyword this is already taken care of?
+            csvFile.close()
+            raise
+
+        csvFile.close()
+
+
+def do_tests_analysis(output_file, experiment_log_file):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+    populations = log_analyzer.process_log(experiment_log_file)
+
+    print(">> Running Tests Analysis")
+
+    # Final test suite is the last PopulationStats
+    final_test_suite = populations[-1]
+
+    for test in final_test_suite.get_individuals():
+        testID = test[0];
+        print("Processing Test ", testID)
+        data_analyzer = DataAnalyzer()
+
+        input_json = get_input_json_for_test(experiment_log_file, testID)
+
+        # This might fail because FILEs are somehow missing so we need to trap the error
+        try:
+            data_analyzer.processTestFile(input_json, output_file)
+        except:
+            print("There was an error processing TEST", input_json)
+            # This invalidate the entire experimentss
+            raise
+
+
+## TODO Use the HASH of the file content to identify the experiments we have already processed
 def main():
     # Cannot use execution bucket as unique ID for the experiment since this is reset day by day
     # Also the global counter might not be perfect !
-    global_experiment_id = 0
+    # global_experiment_id = 0
+    # We cannot even use a global ID since we cannot ensure files a listed in the same order !
 
     # Parse the CLI
     parser = argparse.ArgumentParser()
     parser.add_argument('--root-folder', help='Input Log File')
+    parser.add_argument('--tests-analysis', action='store_true')
+    parser.add_argument('--timing-analysis', action='store_true')
+    parser.add_argument('--fitness-obe-analysis', action='store_true')
 
     args = parser.parse_args()
+
+    if args.root_folder is None:
+        print("No Root Folder")
+        exit(0)
+
     # Ensure the trailing / is there
     root_folder = os.path.join(args.root_folder, '')
     print("ROOT FOLDER", root_folder)
 
     # Process all the execution.log files found under root_folder
     for experiment_log_file in glob.iglob('/'.join([root_folder, '**', 'experiment.log']), recursive=True):
-        global_experiment_id += 1
+
+        # Compute the hash from the
+        log_hash = get_hash(experiment_log_file)
+
         try:
-            print("Found", experiment_log_file )
+            print("Found", experiment_log_file, "with hash ", log_hash)
 
-            ## TEMPORARY FILTER
-            if not asfault_regex.match(experiment_log_file):
-                print("Skip (no asfault)")
+            # Extract metadata from file name
+            # Go two directories above the log file and get the folder name.
+            parent = os.path.split(os.path.abspath(experiment_log_file))[0]
+            gran_parent = os.path.split(os.path.abspath(parent))[0]
+
+            if random_regex.match(experiment_log_file):
+                generator = "random"
+            elif asfault_regex.match(experiment_log_file):
+                generator = "asfault"
+            else:
+                print("ERROR: Unknown Generator for", experiment_log_file, " Skipping it!")
                 continue
 
-            if not small_map_regex.match(experiment_log_file):
-                print("Skip (no small)")
+            if single_regex.match(str(gran_parent), re.IGNORECASE):
+                cardinality = "single"
+            elif multi_regex.match(str(gran_parent), re.IGNORECASE):
+                cardinality = "multi"
+            else:
+                print("ERROR: Unknown Cardinality for", gran_parent, " Skipping it!")
                 continue
 
-            if not multi_regex.match(experiment_log_file):
-                print("Skip (no multi)")
+            if tiny_map_regex.match(experiment_log_file):
+                mapSize = "tiny"
+            elif small_map_regex.match(experiment_log_file):
+                mapSize = "small"
+            elif large_map_regex.match(experiment_log_file):
+                mapSize = "large"
+            else:
+                print("ERROR: Unknown map size for", experiment_log_file, " Skipping it!")
                 continue
 
-            # CAP THE SIMULATION
-            la = LogAnalyzer(GENERATION_LIMIT=40)
-            da = DataAnalyzer()
+            # Stats about the evolution and the populations
+            populations_timing_stats_csv = '.'.join(
+                ['_'.join([generator, cardinality, mapSize, str(log_hash), 'population', 'timing']), 'csv'])
 
-            final_test_suite = la.process_log(experiment_log_file )
+            populations_fitness_obe_stats_csv = '.'.join(
+                ['_'.join([generator, cardinality, mapSize, str(log_hash), 'population', 'fitness', 'obe']), 'csv'])
 
-            for test in final_test_suite:
-                testID = test[0];
-                # print("Processing Test ", testID)
-                inputJSON= os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
-                                        'output', 'execs', ''.join(['test_', testID.zfill(4), '.json']));
+            # Stats about each test
+            tests_analysis_csv = '.'.join(['_'.join([generator, cardinality, mapSize, str(log_hash)]), 'csv'])
 
-                # Check if exists otherwise look under /final
-                if not os.path.isfile(inputJSON):
-                    inputJSON = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
-                                             'output', 'final', ''.join(['test_', testID.zfill(4), '.json']));
+            # TODO Pre-compute the populations if more than one analysis is active
 
-                # Go two directories above the log file and get the folder name.
-                parent = os.path.split(os.path.abspath(experiment_log_file))[0]
-                gran_parent = os.path.split(os.path.abspath(parent))[0]
-                # executionbucket=os.path.split(os.path.abspath(gran_parent))[1]
-
-                # outputCSV = None
-                cardinality = None
-                generator = None
-                # mapSize = None
-
-                if random_regex.match( experiment_log_file ):
-                    generator = "random"
-                elif asfault_regex.match( experiment_log_file ) :
-                    generator = "asfault"
+            if args.timing_analysis:
+                if not os.path.exists(populations_timing_stats_csv):
+                    do_timing_analysis(populations_timing_stats_csv, experiment_log_file)
                 else:
-                    print("ERROR: Unknown Generator for", experiment_log_file, " Skipping it!")
-                    continue
+                    print(">> Skip Timing Analysis: output file exists", populations_timing_stats_csv)
 
-                if single_regex.match( str(gran_parent), re.IGNORECASE):
-                        cardinality = "single"
-                elif multi_regex.match( str(gran_parent), re.IGNORECASE):
-                        cardinality = "multi"
+            if args.fitness_obe_analysis:
+                if not os.path.exists(populations_fitness_obe_stats_csv):
+                    do_fitness_obe_analysis(populations_fitness_obe_stats_csv, experiment_log_file)
                 else:
-                    print("ERROR: Unknown Cardinality for", gran_parent, " Skipping it!")
-                    continue
+                    print(">> Skip Fitness/OBE Analysis: output file exists", populations_fitness_obe_stats_csv)
 
-
-                if tiny_map_regex.match(experiment_log_file):
-                    mapSize = "tiny"
-                elif small_map_regex.match( experiment_log_file):
-                    mapSize = "small"
-                elif large_map_regex.match( experiment_log_file ):
-                    mapSize = "large"
+            if args.tests_analysis:
+                if not os.path.exists(tests_analysis_csv):
+                    do_tests_analysis(tests_analysis_csv, experiment_log_file)
                 else:
-                    print("ERROR: Unknown map size for", experiment_log_file, " Skipping it!")
-                    continue
+                    print(">> Skip Tests Analysis: output file exists", tests_analysis_csv)
 
-                outputCSV = '.'.join([ '_'.join([generator,cardinality,mapSize, str(global_experiment_id)]), 'csv'])
 
-                # This might fail because FILEs are somehow missing so we need to trap the error
-                try:
-                    da.processTestFile(inputJSON, outputCSV)
-                except:
-                    print("There was an error processing TEST", inputJSON)
-                    # This invalidate the entire experimentss
-                    raise
+
         except Exception as e:
             print("Experiment RUN ", experiment_log_file, "is INVALID !", e)
 
