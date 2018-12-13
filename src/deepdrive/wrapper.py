@@ -112,6 +112,22 @@ def main():
     deep_drive_engaged = True
     STATE = "NORMAL"
 
+    Memory.waitOnRead()
+    if Memory.Data.Control.Breaking == 3.0 or Memory.Data.Control.Breaking == 2.0:
+        print("\n\n\nState not reset ! ", Memory.Data.Control.Breaking)
+        Memory.Data.Control.Breaking = 0.0
+        # Pass the computation to DeepDrive
+        # Not sure this will have any effect
+        Memory.indicateWrite()
+
+    Memory.waitOnRead()
+    if Memory.Data.Control.Breaking == 3.0 or Memory.Data.Control.Breaking == 2.0:
+        print("\n\n\nState not reset Again! ", Memory.Data.Control.Breaking)
+        Memory.Data.Control.Breaking = 0.0
+        # Pass the computation to DeepDrive
+        Memory.indicateWrite()
+
+
     # Connect to running beamng
     beamng = BeamNGpy('localhost', 64256, home='C://Users//Alessio//BeamNG.research_unlimited//trunk')
     bng = beamng.open(launch=False)
@@ -180,8 +196,9 @@ def main():
                 if STATE != "DISABLED":
                     print("Abnormal situation detected. Disengage DeepDrive and enable BeamNG AI")
                     vehicle.ai_set_mode("manual")
+                    vehicle.ai_drive_in_lane(True)
+                    vehicle.ai_set_speed(MAX_SPEED)
                     vehicle.ai_set_waypoint("waypoint_goal")
-                    vehicle.ai_drive_in_lane(False)
                     deep_drive_engaged = False
                     STATE = "DISABLED"
             elif Memory.Data.Control.Breaking == 2.0:
@@ -199,7 +216,9 @@ def main():
                     deep_drive_engaged = True
                     STATE = "NORMAL"
 
+            # print("State ", STATE, "Memory ",Memory.Data.Control.Breaking )
             if STATE == "NORMAL":
+                vehicle.ai_set_mode("disabled")
                 # Get commands from SHM
                 # Apply Control - not sure cutting at 3 digit makes a difference
                 steering = round(translate_steering(Memory.Data.Control.Steering), 3)
