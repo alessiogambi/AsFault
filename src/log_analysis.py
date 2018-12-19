@@ -180,8 +180,22 @@ class LogAnalyzer:
         return len(test_execution.get_obes())
 
     def process_log(self, input_log):
+
+        # Files can be either in
+        # /scratch/gambi/AsFault/deepdriving/single_lanedist_0500_0750/17/output/final/test_0016.json
+        # or
+        # /scratch/gambi/AsFault/deepdriving/single_lanedist_0500_0750/17/.asfaultenv/output/final/test_0016.json
+
         self.test_executions_folder = '/'.join([os.path.dirname(input_log), 'output/execs'])
         self.test_final_folder = '/'.join([os.path.dirname(input_log), 'output/final'])
+
+        if not os.path.exists(self.test_executions_folder):
+            self.test_executions_folder = '/'.join([os.path.dirname(input_log), '.asfaultenv/output/execs'])
+        if not os.path.exists(self.test_final_folder):
+            self.test_final_folder = '/'.join([os.path.dirname(input_log), '.asfaultenv/output/final'])
+
+
+
 
         # Current population
         population = PopulationStats(self.POPULATION_SIZE)
