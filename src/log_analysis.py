@@ -16,7 +16,7 @@ from asfault.app import ensure_environment, DEFAULT_ENV
 from asfault.tests import RoadTest, TestExecution
 from asfault import config as c
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import re
 from asfault.beamer import RESULT_SUCCESS
@@ -24,22 +24,28 @@ from asfault.beamer import RESULT_SUCCESS
 asfault_regex = re.compile(r".*_lanedist_.*$")
 random_regex = re.compile(r".*_random_.*$")
 
+
 class PopulationStats:
-    SIZE = 0
-
-    evolved_individuals = None
-    padded_individuals = None
-
-    # Overall time to evolve/generate this population
-    test_generation_time = None
-    # Overall time to execute the evolved tests (the others are not executed but simply copied over)
-    test_execution_time = None
 
     def __init__(self, SIZE):
-        # print("Default constructor with SIZE", SIZE)
         self.SIZE = SIZE
-        self.evolved_individuals = []
-        self.padded_individuals = []
+        # Overall time to evolve/generate this population
+        self.test_generation_time = 0
+        # Overall time to execute the evolved tests (the others are not executed but simply copied over)
+        self.test_execution_time = 0
+        # print("Default constructor with SIZE", SIZE)
+        self.evolved_individuals = list()
+        self.padded_individuals = list()
+
+    def get_cumulative_fitness(self):
+        """
+        Compute the cumulative fitness of this population
+        :return:
+        """
+        cumulative_fitness = 0
+        for test_id, test_fitness in self.get_individuals():
+            cumulative_fitness+=test_fitness
+        return cumulative_fitness
 
     # @property ?
     def get_individuals(self):
@@ -47,7 +53,10 @@ class PopulationStats:
         Return all the individuals in this population
         :return:
         """
-        return self.evolved_individuals + self.padded_individuals
+        individuals = list()
+        individuals.extend(self.evolved_individuals)
+        individuals.extend(self.padded_individuals)
+        return individuals
 
     def get_padded_individuals(self):
         return self.padded_individuals
@@ -71,29 +80,27 @@ class PopulationStats:
                 break
 
     def get_test_generation_time(self):
-        if self.test_generation_time is None:
-            return 0
-        else:
-            return self.test_generation_time.total_seconds()
+        return self.test_generation_time
 
     def get_test_execution_time(self):
-        if self.test_execution_time is None:
-            return 0
-        else:
-            return self.test_execution_time.total_seconds()
+        return self.test_execution_time
 
     def append(self, individual):
         self.evolved_individuals.append(individual)
 
+    def append_individuals(self, individuals):
+        for individual in individuals:
+            self.append(individual)
+
     def increase_test_execution_time_by(self, time):
-        if self.test_execution_time is None:
-            self.test_execution_time = time
+        if isinstance(time, timedelta):
+            self.test_execution_time += time.total_seconds()
         else:
             self.test_execution_time += time
 
     def increase_test_generation_time_by(self, time):
-        if self.test_generation_time is None:
-            self.test_generation_time = time
+        if isinstance(time, timedelta):
+            self.test_generation_time += time.total_seconds()
         else:
             self.test_generation_time += time
 
@@ -104,7 +111,7 @@ class LogAnalyzer:
     # This identifies the start of a test execution
     test_execution_regex = re.compile(r".*Executing Test#(\d+) .*$")
     # This identifies the end of a test execution
-    test_execution_stop_regex = re.compile(r".*Terminating controller process.*$")
+    test_execution_stop_regex = re.compile(r".*Ending test.*$")
 
     # This mark the beginning of the evolution step
     test_generation_start_regex = re.compile(r".*Starting evolution clock.*$")
@@ -180,7 +187,7 @@ class LogAnalyzer:
         population = PopulationStats(self.POPULATION_SIZE)
 
         # Populations in each step of the evolution
-        populations = []
+        populations = list()
 
         # Open input file in 'read' mode
         with open(input_log, "r") as in_file:
@@ -226,17 +233,56 @@ class LogAnalyzer:
                     evolution_step_end_time = None
 
                 elif evolution_step_completed is not None:
-                    # print("Evolution Step Completed", line)
+                    print("Evolution Step Completed", line)
                     # Check how many tests are in the population
                     if population.get_actual_size() < self.POPULATION_SIZE:
                         # Take the previous population (last element in the populations listis the first from right, i.e., -1)
                         population.pad_with(populations[-1])
+
+
+                    if random_regex.match(input_log) and len(populations) > 0:
+                        # TODO: THE FOLLOWING IS NOT WHAT WE NEED ! WE NEED TO KEEP THE BEST SUITE, NOT BUILDING THE SUITE WHICH CONTAINS THE BEST TEST CASES !
+                        # print("Test Selection for Random Execution. Keep only the Best tests !")
+                        # Create a set of individuals from the current and previous population
+                        # all_individuals_no_duplicates = set(populations[-1].get_individuals())
+                        # all_individuals_no_duplicates = all_individuals_no_duplicates.union( set(population.get_individuals() ) )
+                        # Now make this a list, sort it, and take the first self.POPULATION_SIZE
+                        # global_population = PopulationStats(self.POPULATION_SIZE*2)
+                        # global_population.append_individuals(all_individuals_no_duplicates)
+                        # Finally create the better population with the best tests
+                        # better_population = PopulationStats(self.POPULATION_SIZE)
+                        # better_population.append_individuals(global_population.get_sorted_individuals()[:self.POPULATION_SIZE])
+                        # print("Better Population is", better_population.get_sorted_individuals())
+                        # population = better_population
+                        #
+                        #
+                        # Compare the new population against the previous one and keep the best one according to cumulative OBE
+                        # since random uses OBE count as fitness, we simply sum this up
+                        current_fitness = population.get_cumulative_fitness()
+                        previous_fitness = populations[-1].get_cumulative_fitness()
+                        if current_fitness < previous_fitness:
+                            # print("Old population is still better ", previous_fitness, " vs ", current_fitness)
+                            # We keep the individuals of the previous population but we need to account for the timing of the
+                            # new population
+                            # Create a new Population nevertheless
+                            merged_population = PopulationStats(self.POPULATION_SIZE)
+                            # Append the individuals of the previous population
+                            merged_population.append_individuals(populations[-1].get_individuals())
+                            merged_population.increase_test_generation_time_by(population.get_test_generation_time())
+                            merged_population.increase_test_execution_time_by(population.get_test_execution_time())
+                            #
+                            population = merged_population
+                        # else:
+                        #     print("Current population is better", current_fitness, "vs", previous_fitness)
+
                     # At this point we have the final population at evolution step and we store it
                     populations.append(population)
 
-                    # print("Simulated evolution step", len(populations))
-                    # print(" Evolved:", len(population.get_individuals()))
-                    # print(" Padded", len(population.get_padded_individuals()))
+                    print("Simulated evolution step", len(populations))
+                    print(" Evolved:", len(population.get_evolved_individuals()))
+                    print(" Padded", len(population.get_padded_individuals()))
+                    print(" Generation Time", population.get_test_generation_time())
+                    print(" Execution Time", population.get_test_execution_time())
 
                     # Reset counters and states
                     population = PopulationStats(self.POPULATION_SIZE)
@@ -253,8 +299,6 @@ class LogAnalyzer:
                         # print("Logs for AsFault Execution. Use lanedistance as FITNESS")
                         fitness = self.getFitnessForTest(testID)
 
-                    # print("Adding new individual", testID, "to population with fitness", fitness)
-                    population.append((testID, fitness))
                     # Timestamp is ^date[:space:]time
                     timestamp = " ".join(line.split()[0:2])
                     test_start_time = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S,%f')
@@ -265,6 +309,13 @@ class LogAnalyzer:
                     test_end_time = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S,%f')
                     duration = (test_end_time - test_start_time)
                     # print("Test executions time ", duration)
+                    if duration.total_seconds() < 10:
+                        print("Warning. Test", line, "lasted less than 10 seconds", duration)
+
+                    population.append((testID, fitness))
+                    # print("Adding new individual", testID, "to population with fitness", fitness, "total",
+                    #       len(population.get_individuals()))
+
                     population.increase_test_execution_time_by(duration)
 
                     # Reset

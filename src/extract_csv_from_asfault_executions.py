@@ -76,12 +76,14 @@ def do_timing_analysis(output_file, experiment_log_file):
                          "generation_time",
                          "execution_time"])
         for idx, population in enumerate(populations):
+            print(population)
             writer.writerow([idx,
                              len(population.get_evolved_individuals()),
                              len(population.get_padded_individuals()),
                              population.get_test_generation_time(),
                              population.get_test_execution_time()])
         csvFile.close()
+
 
 
 def do_fitness_obe_analysis(output_file, experiment_log_file):
@@ -167,6 +169,8 @@ def main():
     parser.add_argument('--tests-analysis', action='store_true')
     parser.add_argument('--timing-analysis', action='store_true')
     parser.add_argument('--fitness-obe-analysis', action='store_true')
+    parser.add_argument('--only', help='Filter by generator random|asfault', action='store', nargs='?')
+
 
     args = parser.parse_args()
 
@@ -198,6 +202,10 @@ def main():
                 generator = "asfault"
             else:
                 print("ERROR: Unknown Generator for", experiment_log_file, " Skipping it!")
+                continue
+
+            if args.only is not None and generator != args.only:
+                print("Skip", experiment_log_file, "as it does not match", args.only)
                 continue
 
             if single_regex.match(str(gran_parent), re.IGNORECASE):
