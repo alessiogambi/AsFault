@@ -103,19 +103,19 @@ def bng(seed, budget, render, show):
 def ext(seed, generations, render, uniq, ctrl):
     l.info('Starting external evolve with seed: {}'.format(seed))
     l.info('AI Controller call given is: %s', ctrl)
-    plots_dir = config.rg.get_plots_path()
-    tests_dir = config.rg.get_tests_path()
+
+    # plots_dir = config.rg.get_plots_path()
+    # tests_dir = config.rg.get_tests_path()
 
     level_dir = config.ex.get_level_dir()
-    port = config.ex.port
 
-    config.ev.join_probability = 1.1
-    config.ev.lane_width = 4.3
-    if uniq:
-        config.ev.evaluator = 'uniqlanedist'
-    else:
-        config.ev.evaluator = 'lanedist'
-    config.ev.try_all_ops = False
+    # config.ev.join_probability = 1.1
+    # config.ev.lane_width = 4.3
+    # if uniq:
+    #     config.ev.evaluator = 'uniqlanedist'
+    # else:
+    #     config.ev.evaluator = 'lanedist'
+    # config.ev.try_all_ops = False
     config.ex.max_speed = 'false'
     config.ex.ai_controlled = 'false'
     config.ex.direction_agnostic_boundary = True
@@ -123,14 +123,15 @@ def ext(seed, generations, render, uniq, ctrl):
     rng = random.Random()
     rng.seed(seed)
 
-    factory = gen_beamng_runner_factory(
-        level_dir, config.ex.host, port, False, ctrl=ctrl)
-    evaluator = LaneDistanceEvaluator()
-    selector = TournamentSelector(rng, 2)
-    estimator = TurnAndLengthEstimator()
+    factory = gen_beamng_runner_factory(level_dir, config.ex.host, config.ex.port, False, ctrl=ctrl)
 
-    experiments.experiment_out(rng, evaluator, selector, estimator, factory,
-                               True, generations, render=render)
+    # evaluator = LaneDistanceEvaluator()
+    # selector = TournamentSelector(rng, 2)
+    # estimator = TurnAndLengthEstimator()
+    # experiments.experiment_out(rng, evaluator, selector, estimator, factory,
+    #                            True, generations, render=render)
+    budget = generations
+    experiments.experiment(seed, budget, render=render, show=False, factory=factory)
 
 
 @evolve.command()

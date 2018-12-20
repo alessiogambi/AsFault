@@ -170,7 +170,7 @@ def experiment_out(rng, evaluator, selector, estimator, factory, sort_pop, budge
             writer.writerow(evolution)
 
 
-def experiment(seed, budget, render=False, show=False):
+def experiment(seed, budget, render=False, show=False, factory=None):
     rng = random.Random()
     rng.seed(seed)
 
@@ -181,7 +181,10 @@ def experiment(seed, budget, render=False, show=False):
     host = c.ex.host
     port = c.ex.port
 
-    factory = gen_beamng_runner_factory(level_dir, host, port, plot=show)
+    if factory is None:
+        _factory = gen_beamng_runner_factory(level_dir, host, port, plot=show)
+    else:
+        _factory = factory
 
     random_exp = False
 
@@ -210,5 +213,5 @@ def experiment(seed, budget, render=False, show=False):
         print('Illegal value for estimator: {}'.format(c.ex.estimator))
         sys.exit(-1)
 
-    experiment_out(rng, evaluator, selector, estimator, factory,
+    experiment_out(rng, evaluator, selector, estimator, _factory,
                    sort_pop, budget, random_exp=random_exp, render=render, show=show)
