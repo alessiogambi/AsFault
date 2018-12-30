@@ -79,6 +79,15 @@ class PopulationStats:
             if self.get_actual_size() == self.get_size():
                 break
 
+    def pad(self, individual):
+        if self.get_actual_size() == self.get_size():
+            return
+        self.padded_individuals.append(individual)
+
+    def pad_individuals(self, individuals):
+        for individual in individuals:
+            self.pad(individual)
+
     def get_test_generation_time(self):
         return self.test_generation_time
 
