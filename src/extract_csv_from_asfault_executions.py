@@ -52,18 +52,26 @@ def get_hash(file):
 
 
 def get_input_json_for_test(experiment_log_file, testID):
+
+    # Check if output folder is where we expect
+    output_folder = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0], 'output')
+
+    if not os.path.exists(output_folder):
+        output_folder = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0], '.asfaultenv', 'output')
+
     inputJSON = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
-                             'output', 'execs', ''.join(['test_', testID.zfill(4), '.json']));
+                             output_folder, 'execs', ''.join(['test_', testID.zfill(4), '.json']));
 
     # Check if the file exists under 'execs' folder, otherwise look under 'final' folder
     if not os.path.isfile(inputJSON):
         inputJSON = os.path.join(os.path.split(os.path.abspath(experiment_log_file))[0],
-                                 'output', 'final', ''.join(['test_', testID.zfill(4), '.json']));
+                                 output_folder, 'final', ''.join(['test_', testID.zfill(4), '.json']));
+
     return inputJSON
 
 
-def do_timing_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+def do_timing_analysis(output_file, experiment_log_file, POPULATION_SIZE=25):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=POPULATION_SIZE)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running Timing Analysis")
@@ -86,8 +94,8 @@ def do_timing_analysis(output_file, experiment_log_file):
 
 
 
-def do_fitness_obe_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+def do_fitness_obe_analysis(output_file, experiment_log_file, POPULATION_SIZE=25):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=POPULATION_SIZE)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running fitness obe analysis")
@@ -131,8 +139,8 @@ def do_fitness_obe_analysis(output_file, experiment_log_file):
         csvFile.close()
 
 
-def do_tests_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+def do_tests_analysis(output_file, experiment_log_file, POPULATION_SIZE=25):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=POPULATION_SIZE)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running Tests Analysis")
@@ -170,13 +178,16 @@ def main():
     parser.add_argument('--timing-analysis', action='store_true')
     parser.add_argument('--fitness-obe-analysis', action='store_true')
     parser.add_argument('--only', help='Filter by generator random|asfault', action='store', nargs='?')
-
+    parser.add_argument('--population-size', help='Size of the population', default='25')
 
     args = parser.parse_args()
 
     if args.root_folder is None:
         print("No Root Folder")
         exit(0)
+
+    POPULATION_SIZE=int(args.population_size)
+    print("Population SIZE =", POPULATION_SIZE)
 
     # Ensure the trailing / is there
     root_folder = os.path.join(args.root_folder, '')
@@ -240,19 +251,19 @@ def main():
 
             if args.timing_analysis:
                 if not os.path.exists(populations_timing_stats_csv):
-                    do_timing_analysis(populations_timing_stats_csv, experiment_log_file)
+                    do_timing_analysis(populations_timing_stats_csv, experiment_log_file, POPULATION_SIZE)
                 else:
                     print(">> Skip Timing Analysis: output file exists", populations_timing_stats_csv)
 
             if args.fitness_obe_analysis:
                 if not os.path.exists(populations_fitness_obe_stats_csv):
-                    do_fitness_obe_analysis(populations_fitness_obe_stats_csv, experiment_log_file)
+                    do_fitness_obe_analysis(populations_fitness_obe_stats_csv, experiment_log_file, POPULATION_SIZE)
                 else:
                     print(">> Skip Fitness/OBE Analysis: output file exists", populations_fitness_obe_stats_csv)
 
             if args.tests_analysis:
                 if not os.path.exists(tests_analysis_csv):
-                    do_tests_analysis(tests_analysis_csv, experiment_log_file)
+                    do_tests_analysis(tests_analysis_csv, experiment_log_file, POPULATION_SIZE)
                 else:
                     print(">> Skip Tests Analysis: output file exists", tests_analysis_csv)
 
