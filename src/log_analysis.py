@@ -284,19 +284,20 @@ class LogAnalyzer:
                         current_fitness = population.get_cumulative_fitness()
                         previous_fitness = populations[-1].get_cumulative_fitness()
                         if current_fitness < previous_fitness:
-                            # print("Old population is still better ", previous_fitness, " vs ", current_fitness)
+                            print("Old population is still better ", previous_fitness, " vs ", current_fitness)
                             # We keep the individuals of the previous population but we need to account for the timing of the
                             # new population
                             # Create a new Population nevertheless
                             merged_population = PopulationStats(self.POPULATION_SIZE)
                             # Append the individuals of the previous population
                             merged_population.append_individuals(populations[-1].get_individuals())
+                            # But keep the timing for the current one, random spent time in generating and executing tests
                             merged_population.increase_test_generation_time_by(population.get_test_generation_time())
                             merged_population.increase_test_execution_time_by(population.get_test_execution_time())
                             #
                             population = merged_population
-                        # else:
-                        #     print("Current population is better", current_fitness, "vs", previous_fitness)
+                        else:
+                            print("New population is better", current_fitness, "vs", previous_fitness)
 
                     # At this point we have the final population at evolution step and we store it
                     populations.append(population)
