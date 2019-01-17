@@ -232,6 +232,42 @@ class LogAnalyzer:
     #             return regex.match(line)
     #     return None
 
+    UNIQUE_THRESHOLD = 0.1
+
+    def load_test(self, testID):
+        # Load the test. Code duplication
+        inputJSON = '/'.join([self.test_executions_folder, "test_" + testID.zfill(4) + ".json"])
+        # Double check that this file exists under
+        if not os.path.isfile(inputJSON):
+            inputJSON = '/'.join([self.test_final_folder, "test_" + testID.zfill(4) + ".json"])
+
+        if not os.path.isfile(inputJSON):
+            print("I cannot find the file ", inputJSON, "to compute the fitness value!")
+            raise FileNotFoundError("File", inputJSON, "does not exist")
+
+        with open(inputJSON) as handle:
+            dictdump = json.loads(handle.read())
+
+        return RoadTest.from_dict(dictdump)
+
+    def novel_test(self, testID, population):
+
+        candidate = self.load_test(testID)
+
+        for test_tuple in population.get_individuals():
+            test = self.load_test(test_tuple[0])
+            # print("Comparing ", candidate.test_id, test.test_id)
+            distance = test.distance(candidate)
+            if distance < self.UNIQUE_THRESHOLD:
+                print(
+                    'Candidate test %s is not considered unique enough. Too similar to existing test: %s ~= %s, %s',
+                    str(candidate), str(candidate), str(test), distance)
+                return False
+            # else:
+            #     print('Candidate test %s is considered unique enough', str(candidate))
+
+        return True
+
     def process_log(self, input_log):
 
         # Files can be either in
@@ -259,7 +295,8 @@ class LogAnalyzer:
         # Open input file in 'read' mode
         with open(input_log, "r") as in_file:
 
-            if random_regex.match(input_log):
+            random_execution = random_regex.match(input_log) is not None
+            if random_execution:
                 print("Logs for Random Execution. Use OBE count as FITNESS")
             else:
                 print("Logs for AsFault Execution. Use lanedistance as FITNESS")
@@ -313,10 +350,13 @@ class LogAnalyzer:
                     # Check how many tests are in the population
                     if population.get_actual_size() < self.POPULATION_SIZE:
                         # Take the previous population (last element in the populations listis the first from right, i.e., -1)
+                        if random_execution:
+                            print(">>> WARNING: Padding")
+
                         population.pad_with(populations[-1])
 
 
-                    if random_regex.match(input_log) and len(populations) > 0:
+                    if random_execution and len(populations) > 0:
                         # TODO: THE FOLLOWING IS NOT WHAT WE NEED ! WE NEED TO KEEP THE BEST SUITE, NOT BUILDING THE SUITE WHICH CONTAINS THE BEST TEST CASES !
                         # print("Test Selection for Random Execution. Keep only the Best tests !")
                         # Create a set of individuals from the current and previous population
@@ -372,7 +412,7 @@ class LogAnalyzer:
                     # Extract test ID
                     testID = test_execution_match.group(1);
 
-                    if random_regex.match(input_log):
+                    if random_execution:
                         # print("Logs for Random Execution. Use OBE count as FITNESS")
                         fitness = self.get_obe_count_for_test(testID)
                     else:
@@ -391,6 +431,10 @@ class LogAnalyzer:
                     # print("Test executions time ", duration)
                     if duration.total_seconds() < 10:
                         print("Warning. Test", line, "lasted less than 10 seconds", duration)
+
+                    # Check if the test is novel !
+                    if not self.novel_test(testID, population):
+                        print("Test", testID, "with fitness", fitness, "is NOT NOVEL and should be discarded !!")
 
                     population.append((testID, fitness))
                     # print("Adding new individual", testID, "to population with fitness", fitness, "total",

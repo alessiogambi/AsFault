@@ -272,10 +272,11 @@ def main():
                 else:
                     print(">> Skip Tests Analysis: output file exists", tests_analysis_csv)
 
-
-
         except Exception as e:
+            import traceback
             print("Experiment RUN ", experiment_log_file, "is INVALID !", e)
+            traceback.print_tb(e.__traceback__)
+
 
 if __name__ == "__main__":
     main()
