@@ -70,17 +70,19 @@ def get_input_json_for_test(experiment_log_file, testID):
     return inputJSON
 
 
-def do_timing_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=15)
+def do_timing_analysis(output_file, experiment_log_file, population_size):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=population_size)
     populations = log_analyzer.process_log(experiment_log_file)
 
-    print(">> Running Timing Analysis")
+    print(">> Running Timing/Generation Analysis")
     with open(output_file, 'w') as csvFile:
         writer = csv.writer(csvFile)
         # Write Header
         writer.writerow(["evolution_step",
                          "evolved_individuals",
                          "padded_individuals",
+                         "invalid_tests",
+                         "filtered_tests",
                          "generation_time",
                          "execution_time"])
         for idx, population in enumerate(populations):
@@ -88,14 +90,16 @@ def do_timing_analysis(output_file, experiment_log_file):
             writer.writerow([idx,
                              len(population.get_evolved_individuals()),
                              len(population.get_padded_individuals()),
+                             population.get_invalid_tests(),
+                             population.get_filtered_tests(),
                              population.get_test_generation_time(),
                              population.get_test_execution_time()])
         csvFile.close()
 
 
 
-def do_fitness_obe_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=15)
+def do_fitness_obe_analysis(output_file, experiment_log_file, population_size):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=population_size)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running fitness obe analysis")
@@ -140,8 +144,8 @@ def do_fitness_obe_analysis(output_file, experiment_log_file):
         csvFile.close()
 
 
-def do_tests_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=15)
+def do_tests_analysis(output_file, experiment_log_file, population_size):
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=population_size)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running Tests Analysis")

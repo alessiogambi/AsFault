@@ -36,6 +36,21 @@ class PopulationStats:
         # print("Default constructor with SIZE", SIZE)
         self.evolved_individuals = list()
         self.padded_individuals = list()
+        #
+        self.filtered_tests = 0
+        # self.invalid_tests = 0
+
+    def increment_filtered_tests(self):
+        self.filtered_tests += 1
+
+    def get_filtered_tests(self):
+        return self.filtered_tests
+
+    # def increment_invalid_tests(self):
+    #     self.invalid_tests += 1
+
+    def get_invalid_tests(self):
+        return len(self.get_padded_individuals()) - self.filtered_tests
 
     def get_cumulative_fitness(self):
         """
@@ -129,6 +144,29 @@ class LogAnalyzer:
     # This mark the end of the (previous) evolution step
     evolution_regex = re.compile(r".*Test evolution step: (\d+)")
 
+    # This identifies non-unique tests
+    filtered_test_regex = re.compile(r".*is not considered unique enough. Too similar.*$")
+
+    # This identifies invalid tests
+
+    # TODO Since the generation repeats the generation of tests several time, those conditions triggers more than once!
+    # invalid_test_regexs = list()
+    # regexs = [r".*Cross over between .* considered impossible.*$",
+    #           r".*Crossing between .* is not full.*$"
+    #           r".*Front and back have same sides.*$",
+    #           r".*Found self-intersecting branch starting at:.*$",
+    #           r".*Found a partially overlapping pair.*$",
+    #           r".*Network has nodes with too many children.*$",
+    #           r".*Spine starting at .* is too short.*$",
+    #           r".*intersections broken.*$",
+    #           r".*No two boundary segments are reachable.*$",
+    #           r".*Not all branches are reachable from each other.*$",
+    #           r".*Not all branches are long enough.*$",
+    #           r".*Node has more than one child.*$"]
+
+    # for regex in regexs:
+    #     invalid_test_regexs.append(re.compile(regex))
+
     POPULATION_SIZE = -1
     GENERATION_LIMIT = -1
 
@@ -188,6 +226,12 @@ class LogAnalyzer:
 
         return len(test_execution.get_obes())
 
+    # def match_invalid(self, line):
+    #     for regex in self.invalid_test_regexs:
+    #         if regex.match(line):
+    #             return regex.match(line)
+    #     return None
+
     def process_log(self, input_log):
 
         # Files can be either in
@@ -235,6 +279,9 @@ class LogAnalyzer:
 
                 evolution_step_completed = self.evolution_regex.match(line)
 
+                filtered_test_match = self.filtered_test_regex.match(line)
+                # invalid_test_match = self.match_invalid(line)
+
                 if test_generation_start_match is not None:
                     # print("Start Test Generation", line)
                     # Timestamp is ^date[:space:]time
@@ -254,7 +301,13 @@ class LogAnalyzer:
                     # Reset counters
                     evolution_step_start_time = None
                     evolution_step_end_time = None
-
+                elif filtered_test_match is not None:
+                    print("Test is not unique enough.")
+                    population.increment_filtered_tests()
+                # elif invalid_test_match is not None:
+                #     TODO Check that only one condition is triggered at the time !!
+                #     print("Test is not valid !", invalid_test_match)
+                #     population.increment_invalid_tests()
                 elif evolution_step_completed is not None:
                     print("Evolution Step Completed", line)
                     # Check how many tests are in the population
@@ -302,11 +355,14 @@ class LogAnalyzer:
                     # At this point we have the final population at evolution step and we store it
                     populations.append(population)
 
-                    print("Simulated evolution step", len(populations))
+                    print("Simulated evolution step", len(populations)-1)
                     print(" Evolved:", len(population.get_evolved_individuals()))
-                    print(" Padded", len(population.get_padded_individuals()))
+                    print(" Padded:", len(population.get_padded_individuals()))
+                    print("   Invalid", population.get_invalid_tests())
+                    print("   Filtered", population.get_filtered_tests())
                     print(" Generation Time", population.get_test_generation_time())
                     print(" Execution Time", population.get_test_execution_time())
+
 
                     # Reset counters and states
                     population = PopulationStats(self.POPULATION_SIZE)
