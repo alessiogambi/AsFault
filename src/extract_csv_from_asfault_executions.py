@@ -63,7 +63,7 @@ def get_input_json_for_test(experiment_log_file, testID):
 
 
 def do_timing_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=15)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running Timing Analysis")
@@ -87,7 +87,7 @@ def do_timing_analysis(output_file, experiment_log_file):
 
 
 def do_fitness_obe_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=15)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running fitness obe analysis")
@@ -111,6 +111,7 @@ def do_fitness_obe_analysis(output_file, experiment_log_file):
                     # Compute OBEs
                     data_analyzer = DataAnalyzer()
                     input_json = get_input_json_for_test(experiment_log_file, testID)
+                    # This count the obe from the JSON file but it does NOT recompute it !!?!
                     obe_count = len(data_analyzer.get_obes(input_json))
 
                     cumulative_fitness_value += fitness
@@ -132,7 +133,7 @@ def do_fitness_obe_analysis(output_file, experiment_log_file):
 
 
 def do_tests_analysis(output_file, experiment_log_file):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=40, POPULATION_SIZE=25)
+    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=15)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running Tests Analysis")
