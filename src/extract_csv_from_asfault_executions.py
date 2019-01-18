@@ -4,6 +4,7 @@ import glob
 import re
 import os.path
 import csv
+import errno
 
 from log_analysis import LogAnalyzer, PopulationStats
 from data_analysis import DataAnalyzer
@@ -70,10 +71,21 @@ def get_input_json_for_test(experiment_log_file, testID):
     return inputJSON
 
 
+def ensure_folder_exists(file):
+    if not os.path.exists(os.path.dirname(file)):
+        try:
+            os.makedirs(os.path.dirname(file))
+        except OSError as exc:  # Guard against race condition
+            if exc.errno != errno.EEXIST:
+                raise
+
+
 def do_timing_analysis(output_file, populations):
 
     print(">> Running Timing/Generation Analysis")
     print(">> Output to", output_file)
+
+    ensure_folder_exists(output_file)
 
     with open(output_file, 'w') as csvFile:
         writer = csv.writer(csvFile)
@@ -101,6 +113,9 @@ def do_fitness_obe_analysis(output_file, log_analyzer, populations, experiment_l
 
     print(">> Running fitness obe analysis")
     print(">> Output to", output_file)
+
+    ensure_folder_exists(output_file)
+
     with open(output_file, 'w') as csvFile:
         try:
             writer = csv.writer(csvFile)
@@ -146,6 +161,8 @@ def do_tests_analysis(output_file, populations, experiment_log_file):
     print(">> Running Tests Analysis")
     print(">> Output to", output_file)
 
+    ensure_folder_exists(output_file)
+    
     # Final test suite is the last PopulationStats
     final_test_suite = populations[-1]
 
