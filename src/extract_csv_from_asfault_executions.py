@@ -75,6 +75,8 @@ def do_timing_analysis(output_file, experiment_log_file, population_size):
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running Timing/Generation Analysis")
+    print(">> Output to", output_file)
+
     with open(output_file, 'w') as csvFile:
         writer = csv.writer(csvFile)
         # Write Header
@@ -97,12 +99,12 @@ def do_timing_analysis(output_file, experiment_log_file, population_size):
         csvFile.close()
 
 
-
 def do_fitness_obe_analysis(output_file, experiment_log_file, population_size):
     log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=population_size)
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running fitness obe analysis")
+    print(">> Output to", output_file)
     with open(output_file, 'w') as csvFile:
         try:
             writer = csv.writer(csvFile)
@@ -149,6 +151,7 @@ def do_tests_analysis(output_file, experiment_log_file, population_size):
     populations = log_analyzer.process_log(experiment_log_file)
 
     print(">> Running Tests Analysis")
+    print(">> Output to", output_file)
 
     # Final test suite is the last PopulationStats
     final_test_suite = populations[-1]
@@ -184,6 +187,7 @@ def main():
     parser.add_argument('--fitness-obe-analysis', action='store_true')
     parser.add_argument('--only', help='Filter by generator random|asfault', action='store', nargs='?')
     parser.add_argument('--population-size', help='Size of the population', default='25')
+    parser.add_argument('--output-folder', help='Folder to put the files', action='store', nargs='?')
 
     args = parser.parse_args()
 
@@ -197,6 +201,11 @@ def main():
     # Ensure the trailing / is there
     root_folder = os.path.join(args.root_folder, '')
     print("ROOT FOLDER", root_folder)
+
+    output_folder = os.getcwd()
+    if args.output_folder is not None:
+        # Ensure the trailing / is there
+        output_folder = os.path.join(args.output_folder, '')
 
     # Process all the execution.log files found under root_folder
     for experiment_log_file in glob.iglob('/'.join([root_folder, '**', 'experiment.log']), recursive=True):
@@ -242,15 +251,23 @@ def main():
                 print("ERROR: Unknown map size for", experiment_log_file, " Skipping it!")
                 continue
 
+            # Setup the output files
+
             # Stats about the evolution and the populations
             populations_timing_stats_csv = '.'.join(
                 ['_'.join([generator, cardinality, mapSize, str(log_hash), 'population', 'timing']), 'csv'])
 
+            populations_timing_stats_csv = os.path.join(output_folder, populations_timing_stats_csv)
+
             populations_fitness_obe_stats_csv = '.'.join(
                 ['_'.join([generator, cardinality, mapSize, str(log_hash), 'population', 'fitness', 'obe']), 'csv'])
 
+            populations_fitness_obe_stats_csv = os.path.join(output_folder, populations_fitness_obe_stats_csv)
+
             # Stats about each test
             tests_analysis_csv = '.'.join(['_'.join([generator, cardinality, mapSize, str(log_hash)]), 'csv'])
+
+            tests_analysis_csv = os.path.join( output_folder, tests_analysis_csv )
 
             # TODO Pre-compute the populations if more than one analysis is active
 
