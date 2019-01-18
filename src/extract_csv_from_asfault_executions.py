@@ -70,9 +70,7 @@ def get_input_json_for_test(experiment_log_file, testID):
     return inputJSON
 
 
-def do_timing_analysis(output_file, experiment_log_file, population_size):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=population_size)
-    populations = log_analyzer.process_log(experiment_log_file)
+def do_timing_analysis(output_file, populations):
 
     print(">> Running Timing/Generation Analysis")
     print(">> Output to", output_file)
@@ -99,9 +97,7 @@ def do_timing_analysis(output_file, experiment_log_file, population_size):
         csvFile.close()
 
 
-def do_fitness_obe_analysis(output_file, experiment_log_file, population_size):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=population_size)
-    populations = log_analyzer.process_log(experiment_log_file)
+def do_fitness_obe_analysis(output_file, log_analyzer, populations, experiment_log_file):
 
     print(">> Running fitness obe analysis")
     print(">> Output to", output_file)
@@ -146,10 +142,7 @@ def do_fitness_obe_analysis(output_file, experiment_log_file, population_size):
         csvFile.close()
 
 
-def do_tests_analysis(output_file, experiment_log_file, population_size):
-    log_analyzer = LogAnalyzer(GENERATION_LIMIT=15, POPULATION_SIZE=population_size)
-    populations = log_analyzer.process_log(experiment_log_file)
-
+def do_tests_analysis(output_file, populations, experiment_log_file):
     print(">> Running Tests Analysis")
     print(">> Output to", output_file)
 
@@ -182,12 +175,17 @@ def main():
     # Parse the CLI
     parser = argparse.ArgumentParser()
     parser.add_argument('--root-folder', help='Input Log File')
+    parser.add_argument('--output-folder', help='Folder to put the files', action='store', nargs='?')
+
     parser.add_argument('--tests-analysis', action='store_true')
     parser.add_argument('--timing-analysis', action='store_true')
     parser.add_argument('--fitness-obe-analysis', action='store_true')
+
     parser.add_argument('--only', help='Filter by generator random|asfault', action='store', nargs='?')
+
     parser.add_argument('--population-size', help='Size of the population', default='25')
-    parser.add_argument('--output-folder', help='Folder to put the files', action='store', nargs='?')
+
+    parser.add_argument('--time-limit', help='Limit in seconds for the time budget analysis', default='-1')
 
     args = parser.parse_args()
 
@@ -195,12 +193,15 @@ def main():
         print("No Root Folder")
         exit(0)
 
-    POPULATION_SIZE=int(args.population_size)
-    print("Population SIZE =", POPULATION_SIZE)
+    population_size=int(args.population_size)
+    print("Population SIZE =", population_size)
 
     # Ensure the trailing / is there
     root_folder = os.path.join(args.root_folder, '')
     print("ROOT FOLDER", root_folder)
+
+    time_limit = int(args.time_limit)
+    print("TIME LIMIT =", time_limit)
 
     output_folder = os.getcwd()
     if args.output_folder is not None:
@@ -269,23 +270,47 @@ def main():
 
             tests_analysis_csv = os.path.join( output_folder, tests_analysis_csv )
 
-            # TODO Pre-compute the populations if more than one analysis is active
+            # Pre-compute the populations if more than one analysis is active
+            # TODO Check if log analysis shall run at all
+
+            log_analyzer = LogAnalyzer(GENERATION_LIMIT=50, POPULATION_SIZE=population_size)
+            populations = log_analyzer.process_log(experiment_log_file)
+
+            if time_limit != -1:
+                print(">> Limit the populations by time", time_limit)
+                cumulative_time = 0
+                population_limit = len(populations)
+
+                # We need to start at one because the slice operator consider end-1
+                for idx, population in enumerate(populations, start=1):
+                    # print(">> Considering population", idx)
+                    cumulative_time += population.get_test_generation_time()
+                    cumulative_time += population.get_test_execution_time()
+                    if cumulative_time >= time_limit:
+                        # print(">> Filter at population", idx, "(included)")
+                        population_limit = idx
+                        break
+
+                populations = populations[:population_limit]
+
+                print(">> Filtered population size", len(populations))
 
             if args.timing_analysis:
                 if not os.path.exists(populations_timing_stats_csv):
-                    do_timing_analysis(populations_timing_stats_csv, experiment_log_file, POPULATION_SIZE)
+                    do_timing_analysis(populations_timing_stats_csv, populations)
                 else:
                     print(">> Skip Timing Analysis: output file exists", populations_timing_stats_csv)
 
             if args.fitness_obe_analysis:
                 if not os.path.exists(populations_fitness_obe_stats_csv):
-                    do_fitness_obe_analysis(populations_fitness_obe_stats_csv, experiment_log_file, POPULATION_SIZE)
+                    do_fitness_obe_analysis(populations_fitness_obe_stats_csv, log_analyzer, populations,
+                                            experiment_log_file)
                 else:
                     print(">> Skip Fitness/OBE Analysis: output file exists", populations_fitness_obe_stats_csv)
 
             if args.tests_analysis:
                 if not os.path.exists(tests_analysis_csv):
-                    do_tests_analysis(tests_analysis_csv, experiment_log_file, POPULATION_SIZE)
+                    do_tests_analysis(tests_analysis_csv, populations, experiment_log_file)
                 else:
                     print(">> Skip Tests Analysis: output file exists", tests_analysis_csv)
 

@@ -38,7 +38,6 @@ class PopulationStats:
         self.padded_individuals = list()
         #
         self.filtered_tests = 0
-        # self.invalid_tests = 0
 
     def increment_filtered_tests(self):
         self.filtered_tests += 1
@@ -447,7 +446,7 @@ class LogAnalyzer:
                     test_end_time = None
 
                 # We cap the generation since many test files are missing !
-                if len(populations) >= self.GENERATION_LIMIT:
+                if self.GENERATION_LIMIT != -1 and len(populations) >= self.GENERATION_LIMIT:
                     print("Reached GENERATION_LIMIT", self.GENERATION_LIMIT)
                     break
                     # return sorted(populations[-1], key=lambda x: x[0], reverse=False)
