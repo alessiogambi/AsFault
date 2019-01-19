@@ -63,7 +63,10 @@ def main(MAX_SPEED):
 
     # Set up sensors
     resolution = (280, 210)
-    pos = (-0.5, 1.8, 0.8)  # Left/Right, Front/Back, Above/Below
+    # Original Settings
+    #pos = (-0.5, 1.8, 0.8)  # Left/Right, Front/Back, Above/Below
+    # 0.4 is inside
+    pos = (0, 2.0, 0.5)  # Left/Right, Front/Back, Above/Below
     direction = (0, 1, 0)
     # direction = (180, 0, 180)
 
