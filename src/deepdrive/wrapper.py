@@ -44,7 +44,7 @@ def translate_steering(original_steering_value):
     return newValue
 
 
-def main():
+def main(MAX_SPEED):
     setup_logging()
 
     # Gains to port TORCS actuators to BeamNG
@@ -75,7 +75,7 @@ def main():
     # FOV 40, MAX_SPEED 80, 10 Hz Seems to be fine but drives slower
 
     fov = 60
-    MAX_SPEED = 70
+    # MAX_SPEED = 70
     MAX_FPS = 60
     SIMULATION_STEP = 6
     # Running the controller at 20 hz makes experiments 3 to 4 times slower ! 5 minutes of simulations end up sucking 20 minutes !
@@ -238,4 +238,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--max-speed', type=int, default=70, help='Speed Limit in KM/H')
+    args = parser.parse_args()
+    print("Setting max speed to", args.max_speed)
+    main(args.max_speed)
