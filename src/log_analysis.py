@@ -12,7 +12,7 @@
 import os.path
 import json
 import argparse
-from asfault.app import ensure_environment, DEFAULT_ENV
+from asfault.app import read_environment, DEFAULT_ENV
 from asfault.tests import RoadTest, TestExecution
 from asfault import config as c
 
@@ -174,7 +174,6 @@ class LogAnalyzer:
     test_final_folder = None
 
     def __init__(self, GENERATION_LIMIT, POPULATION_SIZE):
-        ensure_environment(DEFAULT_ENV)
         self.GENERATION_LIMIT = GENERATION_LIMIT
         self.POPULATION_SIZE = POPULATION_SIZE
 
@@ -268,6 +267,21 @@ class LogAnalyzer:
         return True
 
     def process_log(self, input_log):
+
+        # The Env directory is the one which contains cfg.
+        # This is either . or ./.asfaultenv
+        # A better way would be to use `find`
+        env_dir = os.path.dirname(input_log)
+        if not os.path.exists( os.path.join(env_dir, "cfg")):
+            # Look for .asfaultenv
+            env_dir = os.path.join(os.path.dirname(input_log), ".asfaultenv")
+            if not os.path.exists(os.path.join(env_dir, "cfg")):
+                env_dir = DEFAULT_ENV
+        #
+        print("Read configuration from", env_dir)
+        read_environment(env_dir)
+
+
 
         # Files can be either in
         # /scratch/gambi/AsFault/deepdriving/single_lanedist_0500_0750/17/output/final/test_0016.json
@@ -431,9 +445,9 @@ class LogAnalyzer:
                     if duration.total_seconds() < 10:
                         print("Warning. Test", line, "lasted less than 10 seconds", duration)
 
-                    # Check if the test is novel !
-                    if not self.novel_test(testID, population):
-                        print("Test", testID, "with fitness", fitness, "is NOT NOVEL and should be discarded !!")
+                    # TODO We skip this since its expensive:Check if the test is novel !
+                    # if not self.novel_test(testID, population):
+                    #     print("Test", testID, "with fitness", fitness, "is NOT NOVEL and should be discarded !!")
 
                     population.append((testID, fitness))
                     # print("Adding new individual", testID, "to population with fitness", fitness, "total",
