@@ -285,32 +285,45 @@ def main():
             # Stats about each test
             tests_analysis_csv = '.'.join(['_'.join([generator, cardinality, mapSize, str(log_hash)]), 'csv'])
 
-            tests_analysis_csv = os.path.join( output_folder, tests_analysis_csv )
+            tests_analysis_csv = os.path.join(output_folder, tests_analysis_csv )
 
             # Pre-compute the populations if more than one analysis is active
             # TODO Check if log analysis shall run at all
 
-            log_analyzer = LogAnalyzer(GENERATION_LIMIT=50, POPULATION_SIZE=population_size)
-            populations = log_analyzer.process_log(experiment_log_file)
+            # Check if the analysis shall run before running the expensive log analysis
+            shall_log_run = (args.timing_analysis and not os.path.exists(populations_timing_stats_csv)) or \
+                            (args.fitness_obe_analysis and not os.path.exists(populations_fitness_obe_stats_csv)) or \
+                            (args.tests_analysis and not os.path.exists(tests_analysis_csv))
 
-            if time_limit != -1:
-                print(">> Limit the populations by time", time_limit)
-                cumulative_time = 0
-                population_limit = len(populations)
+            if shall_log_run:
+                log_analyzer = LogAnalyzer(GENERATION_LIMIT=50, POPULATION_SIZE=population_size)
+                populations = log_analyzer.process_log(experiment_log_file)
 
-                # We need to start at one because the slice operator consider end-1
-                for idx, population in enumerate(populations, start=1):
-                    # print(">> Considering population", idx)
-                    cumulative_time += population.get_test_generation_time()
-                    cumulative_time += population.get_test_execution_time()
-                    if cumulative_time >= time_limit:
-                        # print(">> Filter at population", idx, "(included)")
-                        population_limit = idx
-                        break
+                if time_limit != -1:
+                    print(">> Limit the populations by time", time_limit)
+                    cumulative_time = 0
+                    population_limit = len(populations)
 
-                populations = populations[:population_limit]
+                    # We need to start at one because the slice operator consider end-1
+                    for idx, population in enumerate(populations, start=1):
+                        # print(">> Considering population", idx)
+                        cumulative_time += population.get_test_generation_time()
+                        cumulative_time += population.get_test_execution_time()
+                        if cumulative_time >= time_limit:
+                            # print(">> Filter at population", idx, "(included)")
+                            population_limit = idx
+                            break
 
-                print(">> Filtered population size", len(populations))
+                    populations = populations[:population_limit]
+
+                    print(">> Filtered population size", len(populations))
+            else:
+                print("All the analysis are already cached for experiment", log_hash)
+                continue
+
+            # Just in case something went wrong...
+            if len(populations) == 0:
+                raise Exception("No Population Found")
 
             if args.timing_analysis:
                 if not os.path.exists(populations_timing_stats_csv):
