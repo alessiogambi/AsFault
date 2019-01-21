@@ -136,7 +136,7 @@ def do_fitness_obe_analysis(output_file, log_analyzer, populations, experiment_l
                     # Compute OBEs
                     data_analyzer = DataAnalyzer()
                     input_json = get_input_json_for_test(experiment_log_file, testID)
-                    # This count the obe from the JSON file but it does NOT recompute it !!?!
+                    # This compute the obe from the JSON file so it does NOT simply read the provided value !
                     obe_count = len(data_analyzer.get_obes(input_json))
 
                     cumulative_fitness_value += fitness
@@ -203,6 +203,7 @@ def main():
     parser.add_argument('--population-size', help='Size of the population', default='25')
 
     parser.add_argument('--time-limit', help='Limit in seconds for the time budget analysis', default='-1')
+    parser.add_argument('--generation-limit', help='Limit the evolution at given limit', default='-1')
 
     args = parser.parse_args()
 
@@ -219,6 +220,9 @@ def main():
 
     time_limit = int(args.time_limit)
     print("TIME LIMIT =", time_limit)
+
+    generation_limit = int(args.generation_limit)
+    print("GENERATION LIMIT =", generation_limit)
 
     output_folder = os.getcwd()
     if args.output_folder is not None:
@@ -296,7 +300,7 @@ def main():
                             (args.tests_analysis and not os.path.exists(tests_analysis_csv))
 
             if shall_log_run:
-                log_analyzer = LogAnalyzer(GENERATION_LIMIT=50, POPULATION_SIZE=population_size)
+                log_analyzer = LogAnalyzer(GENERATION_LIMIT=generation_limit, POPULATION_SIZE=population_size)
                 populations = log_analyzer.process_log(experiment_log_file)
 
                 if time_limit != -1:
