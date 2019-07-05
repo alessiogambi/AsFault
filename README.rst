@@ -12,7 +12,7 @@ There are several details that need to be explained. In particular, we need to s
 Example Execution
 -----------------
 
-You can run AsFault using e.g. `asfault evolve bng --seed 1234 --budget 2 --show --render`. See the file src/asfault/app.py` for more details regarding these options. The options are specified using the Python module click_.
+You can run AsFault using e.g. :code:`asfault evolve bng --seed 1234 --budget 2 --show --render`. See the file src/asfault/app.py` for more details regarding these options. The options are specified using the Python module click_.
 
 
 .. _BeamNG: https://beamng.gmbh/research/
