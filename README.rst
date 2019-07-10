@@ -36,7 +36,6 @@ If you're using an Anaconda environment, you should be able to install shapely u
 
 You can now install the AsFault package. Go inside the cloned repo, and then type :code:`pip install -e .`, which essentially installs AsFault in your current environment in an editable mode.
 
-
 -----------------
 Example Execution
 -----------------
