@@ -578,6 +578,15 @@ class TestSuiteGenerator:
         self.beg_evol = None
         return ret.seconds
 
+    def start_wall_time_clock(self):
+        self.wall_time = datetime.datetime.now()
+
+    def get_wall_time_clock(self):
+        assert self.wall_time
+        ret = datetime.datetime.now() - self.wall_time
+        return ret.seconds
+
+
     def is_new(self, candidate):
         for test in self.population:
             distance = test.distance(candidate)
@@ -596,9 +605,16 @@ class TestSuiteGenerator:
         l.info('Candidate test %s is considered new.', str(candidate))
         return True
 
-    def evolve_suite(self, generations):
+    def evolve_suite(self, generations, time_limit=-1):
+        # Start wall time clock to compute time limit
+        self.start_wall_time_clock()
+
         # Initialise pop
         l.debug('Starting evolution clock.')
+
+        if time_limit != -1:
+            l.debug('Evolution butget is %s seconds', str(time_limit))
+
         self.beg_evol_clock()
         l.info('Initialising test suite population.')
         for state in self.generate_tests(self.max_pop - len(self.population)):
@@ -614,6 +630,12 @@ class TestSuiteGenerator:
         evaluation = self.evaluator.evaluate_suite(self.population)
         total_eval_time = evaluation.duration
         l.debug('Paused evaluation clock at: %s', total_eval_time)
+
+        # Also the first run counts
+        if time_limit >= -1 and self.get_wall_time_clock() >= time_limit:
+            l.info("Enforcing time limit after initial generation")
+            generations = 0
+
 
         l.debug('Entering main evolution loop.')
         for _ in range(generations):
@@ -714,11 +736,21 @@ class TestSuiteGenerator:
             self.population = nextgen
             self.step += 1
             total_evol_time += self.end_evol_clock()
+
             l.debug("Evaluating test suite after evolution step.")
             l.debug('Using evaluator: %s', str(type(self.evaluator)))
             self.run_suite()
             evaluation = self.evaluator.evaluate_suite(self.population)
             total_eval_time += evaluation.duration
+
+            l.debug("Total Eval Time %s", str(total_eval_time))
+            l.debug("Total Evol Time %s", str(total_evol_time))
+
+            # If the time_limit is not -1 we need to enforce it
+            if time_limit >= -1 and self.get_wall_time_clock() >= time_limit:
+                l.info("Enforcing Time Limit. Exit the evolution loop !")
+                # TODO Set the state ?
+                break
 
         if evaluation.result == TestSuiteEvaluation.RESULT_TIMEOUT:
             yield ('timeout', (self.population, evaluation, total_evol_time, total_eval_time))
