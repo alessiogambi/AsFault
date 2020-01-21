@@ -645,7 +645,8 @@ class TestRunner:
         lua = "require('scenario/scenariosLoader').startByPath('{}')"
         lua = lua.format(scenario_file)
         if self.ctrl:
-            lua += ";registerCoreModule('util_researchGE')"
+            # ALESSIO: This changed since the original version of AsFault
+            lua += ";registerCoreModule('util/researchGE')"
         userpath = c.ex.get_user_dir()
         call = [BEAMNG_BINARY, '-userpath', userpath, '-lua', lua, '-console']
         l.info('Calling BeamNG: %s', call)
