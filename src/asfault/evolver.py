@@ -632,7 +632,7 @@ class TestSuiteGenerator:
         l.debug('Paused evaluation clock at: %s', total_eval_time)
 
         # Also the first run counts
-        if time_limit >= -1 and self.get_wall_time_clock() >= time_limit:
+        if time_limit != -1 and self.get_wall_time_clock() >= time_limit:
             l.info("Enforcing time limit after initial generation")
             generations = 0
 
@@ -747,7 +747,7 @@ class TestSuiteGenerator:
             l.debug("Total Evol Time %s", str(total_evol_time))
 
             # If the time_limit is not -1 we need to enforce it
-            if time_limit >= -1 and self.get_wall_time_clock() >= time_limit:
+            if time_limit != -1 and self.get_wall_time_clock() >= time_limit:
                 l.info("Enforcing Time Limit. Exit the evolution loop !")
                 # TODO Set the state ?
                 break
