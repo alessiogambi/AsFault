@@ -452,9 +452,9 @@ class CarState:
         dic['pos_y'] = state.pos_y
         dic['pos_z'] = state.pos_z
         dic['steering'] = state.steering
-        dic['vel_x'] = state.pos_x
-        dic['vel_y'] = state.pos_y
-        dic['vel_z'] = state.pos_z
+        dic['vel_x'] = state.vel_x
+        dic['vel_y'] = state.vel_y
+        dic['vel_z'] = state.vel_z
         return dic
 
     @staticmethod
