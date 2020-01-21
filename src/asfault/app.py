@@ -220,6 +220,12 @@ def mock(seed, generations, show, render):
 @click.option('--output', default=os.path.curdir)
 @click.argument('test-file', nargs=1)
 def run_test(ext, show, output, test_file):
+    _run_test(ext,  show, output, test_file)
+
+# SHARED WITH run_tests
+# TODO Set a timeout to stop the test execution ?
+# TODO Check that input file exists
+def _run_test(ext, show, output, test_file):
     with open(test_file, 'r') as infile:
         test_dict = json.loads(infile.read())
     test = RoadTest.from_dict(test_dict)
@@ -234,13 +240,28 @@ def run_test(ext, show, output, test_file):
     l.info('Output result to: %s', output_file)
     if ext:
         l.info('Configure the external AI: %s', ext)
+    else:
+        l.info('Driving with BeamNG.AI')
+
     # This starts the external client but uses BeamNG AI nevertheless
     execution = runner.run()
+
+    # Create output folder if missing
+    if not os.path.exists(output):
+        os.makedirs(output, exist_ok=True)
 
     # Dump to JSON file
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(TestExecution.to_dict(execution), f, ensure_ascii=False, indent=4)
 
+@evolve.command()
+@click.option('--ext', default=None)
+@click.option('--show', is_flag=False)
+@click.option('--output', default=os.path.curdir)
+@click.argument('test-files', nargs=-1, required=True, type=click.Path())
+def run_tests(ext, show, output, test_files):
+    for test_file in test_files:
+        _run_test(ext, show, output, test_file)
 
 def process_oob_segs(oob_segs):
     summary = defaultdict(int)
