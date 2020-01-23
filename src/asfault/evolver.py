@@ -359,7 +359,8 @@ class TestSuiteGenerator:
             l.debug('Setting path of new test: %s', test.test_id)
             test.set_path(path)
             l.debug('Set path of offspring.')
-        beam_test = generate_test_prefab(test)
+        # Commented to address #18. This should not matter for test generation
+        # beam_test = generate_test_prefab(test)
         return test
 
     def attempt_crosssover(self, mom, dad, crossover):
