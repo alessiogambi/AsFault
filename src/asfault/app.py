@@ -104,7 +104,10 @@ def bng(seed, budget, render, show):
 @click.argument('ctrl')
 def ext(seed, generations, render, uniq, time_limit, ctrl):
     l.info('Starting external evolve with seed: {}'.format(seed))
-    l.info('Time limit will be enforced at: {}'.format(time_limit))
+
+    if time_limit != -1:
+        l.info('Time limit will be enforced at: {}'.format(time_limit))
+
     l.info('AI Controller call given is: %s', ctrl)
 
     # plots_dir = config.rg.get_plots_path()
