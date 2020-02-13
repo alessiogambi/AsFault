@@ -359,7 +359,8 @@ class TestSuiteGenerator:
             l.debug('Setting path of new test: %s', test.test_id)
             test.set_path(path)
             l.debug('Set path of offspring.')
-        beam_test = generate_test_prefab(test)
+        # Commented to address #18. This should not matter for test generation
+        # beam_test = generate_test_prefab(test)
         return test
 
     def attempt_crosssover(self, mom, dad, crossover):
@@ -612,7 +613,7 @@ class TestSuiteGenerator:
         # Initialise pop
         l.debug('Starting evolution clock.')
 
-        if time_limit != -1:
+        if time_limit > 0:
             l.debug('Evolution butget is %s seconds', str(time_limit))
 
         self.beg_evol_clock()
@@ -632,10 +633,9 @@ class TestSuiteGenerator:
         l.debug('Paused evaluation clock at: %s', total_eval_time)
 
         # Also the first run counts
-        if time_limit > -1 and self.get_wall_time_clock() >= time_limit:
-            l.info("Enforcing time limit after initial generation")
+        if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+            l.info("Enforcing time limit", time_limit,"after initial generation")
             generations = 0
-
 
         l.debug('Entering main evolution loop.')
         for _ in range(generations):
@@ -747,9 +747,9 @@ class TestSuiteGenerator:
             l.debug("Total Evol Time %s", str(total_evol_time))
 
             # If the time_limit is not -1 we need to enforce it
-            if time_limit > -1 and self.get_wall_time_clock() >= time_limit:
-                l.info("Enforcing Time Limit. Exit the evolution loop !")
-                # TODO Set the state ?
+            if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+                l.info("Enforcing time limit", time_limit,". Exit the evolution loop !")
+                evaluation.result = TestSuiteEvaluation.RESULT_TIMEOUT:
                 break
 
         if evaluation.result == TestSuiteEvaluation.RESULT_TIMEOUT:

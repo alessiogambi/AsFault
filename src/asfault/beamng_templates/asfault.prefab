@@ -64,7 +64,7 @@ $ThisPrefab = new SimGroup() {
         textureLength = "16";
 
         {% for node in divider.nodes %}
-        Node = "{{node.x}} {{node.y}} {{node.z}} 0.3";
+        Node = "{{node.x}} {{node.y}} {{node.z}} 0.2";
         {% endfor %}
     };
     {% endfor %}
@@ -96,7 +96,7 @@ $ThisPrefab = new SimGroup() {
         textureLength = "16";
 
         {% for node in boundary.nodes %}
-        Node = "{{node.x}} {{node.y}} {{node.z}} 0.3";
+        Node = "{{node.x}} {{node.y}} {{node.z}} 0.2";
         {% endfor %}
     };
     {% endfor %}
@@ -128,7 +128,7 @@ $ThisPrefab = new SimGroup() {
         textureLength = "16";
 
         {% for node in boundary.nodes %}
-        Node = "{{node.x}} {{node.y}} {{node.z}} 0.3";
+        Node = "{{node.x}} {{node.y}} {{node.z}} 0.2";
         {% endfor %}
     };
     {% endfor %}

@@ -5,7 +5,7 @@
         "authors": "",
         "difficulty": "0",
         "vehicles": {
-            "scenario_player1": {
+            "egovehicle": {
                 "playerUsable": true,
                 "startFocus": true
             },

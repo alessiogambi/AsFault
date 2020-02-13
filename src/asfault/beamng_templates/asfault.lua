@@ -20,7 +20,7 @@ local function log(level, message)
     _log(level, 'asfault', message)
 end
 
-log('I', 'Starting up RoadGen Lua API')
+log('I', 'Starting up AsFault Lua API')
 
 local con = nil
 local clients_read = {}
@@ -239,11 +239,10 @@ local function onUpdate(tickTime)
 end
 
 local function onScenarioUIReady()
-    -- sendSocketMessage("HELLO:true")
+    
 end
 
 local function onScenarioLoaded()
-    -- sendSocketMessage("HELLO:true")
     loaded = true
     startCooldown = 120
 end
