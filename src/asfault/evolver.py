@@ -747,7 +747,7 @@ class TestSuiteGenerator:
             # If the time_limit is not -1 we need to enforce it
             if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
                 l.info("Enforcing time limit", time_limit,". Exit the evolution loop !")
-                evaluation.result = TestSuiteEvaluation.RESULT_TIMEOUT:
+                evaluation.result = TestSuiteEvaluation.RESULT_TIMEOUT
                 break
 
         if evaluation.result == TestSuiteEvaluation.RESULT_TIMEOUT:
