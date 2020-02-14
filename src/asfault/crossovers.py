@@ -181,8 +181,10 @@ class PartialMerge(Merge):
                     for result in results:
                         if result.complete_is_consistent():
                             try:
-                                test = gen.test_from_network(result)
-                                generate_test_prefab(test)
+                                # Do generate the test template inside crossover. Do it only later.
+                                # This assumes that no additional checks are performed during generate_test_prefab or gen.test_from_network
+                                # test = gen.test_from_network(result)
+                                # generate_test_prefab(test)
                                 certified.append(result)
                             except Exception as e:
                                 l.error('Exception while crossing over: ')
