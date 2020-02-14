@@ -1189,10 +1189,24 @@ class NetworkLayout:
 
             spine = node.get_spine()
             intersect = boundary.intersection(spine)
-            if intersect.type == 'Point':
-                ret.add(node)
-            elif len(intersect.geoms) > 0:
-                ret.add(node)
+
+            # Patch to enable the use of Shapely 1.7.0 which is the default for Python 3.7
+            req_version = (3, 6)
+            cur_version = sys.version_info
+            if cur_version >= req_version:
+                if intersect.type == 'Point':
+                    ret.add(node)
+                elif intersect.type == 'MultiPoint':
+                    ret.add(node)
+                else:
+                    if len(intersect.coords) > 0:
+                        ret.add(node)
+            else:
+                # Original AsFault code which assumes 3.6
+                if intersect.type == 'Point':
+                    ret.add(node)
+                elif len(intersect.geoms) > 0:
+                    ret.add(node)
 
         return ret
 
