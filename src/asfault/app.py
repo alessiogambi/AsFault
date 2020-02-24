@@ -244,6 +244,7 @@ def _run_test(ext, show, output, test_file):
         test_dict = json.loads(infile.read())
     test = RoadTest.from_dict(test_dict)
     out_dir = config.ex.get_level_dir()
+
     host = config.ex.host
     port = config.ex.port
 
@@ -276,6 +277,38 @@ def _run_test(ext, show, output, test_file):
 def run_tests(ext, show, output, test_files):
     for test_file in test_files:
         _run_test(ext, show, output, test_file)
+
+
+@replay.command()
+@click.option('--ext', default=None)
+@click.option('--show', is_flag=False)
+@click.option('--output', default=os.path.curdir)
+@click.argument('input_folder', nargs=1, required=True, type=click.Path())
+def run_tests_from_folder(ext, show, output, input_folder):
+    if Path.is_dir(Path(input_folder)):
+        for test_file in _get_test_files_from_folder(input_folder):
+            _run_test(ext, show, output, test_file)
+    else:
+        l.error("This command requires an existing folder as input")
+
+
+def _get_test_files_from_folder(input_folder):
+    tests = []
+    for file in os.listdir(input_folder):
+        test_file = os.path.join(input_folder, file)
+        if os.path.isfile(test_file) and file.endswith(".json"):
+            try:
+                with open(test_file, 'r') as infile:
+                    test_dict = json.loads(infile.read())
+                test = RoadTest.from_dict(test_dict)
+                # TODO not sure this is ok...
+                if test is not None:
+                    tests.append(test_file)
+            except:
+                l.info("Invalid test file. Skip" + str(test_file))
+
+    return tests
+
 
 def process_oob_segs(oob_segs):
     summary = defaultdict(int)

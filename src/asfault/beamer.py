@@ -862,18 +862,22 @@ class TestRunner:
                 break
 
         self.send_message('KILL:0')
+
+        self.close()
+
         sleep(0.5)
-        self.kill_beamng()
+
         self.end_time = datetime.datetime.now()
         execution = self.evaluate(result, reason)
         self.test.execution = execution
 
-        self.kill_controller()
+
 
         return execution
 
     def close(self):
         self.kill_beamng()
+        self.kill_controller()
         self.server.close()
 
 
