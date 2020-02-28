@@ -692,10 +692,12 @@ class TestRunner:
 
     def state_handler(self, param):
         data = param.split(';')
-        if len(data) == 8:
+
+        if len(data) == 11:
             data = [float(dat) for dat in data]
 
             state = CarState(self.test, *data)
+
             self.states.append(state)
             if self.tracer:
                 self.tracer.update_carstate(state)
@@ -862,22 +864,18 @@ class TestRunner:
                 break
 
         self.send_message('KILL:0')
-
-        self.close()
-
         sleep(0.5)
-
+        self.kill_beamng()
         self.end_time = datetime.datetime.now()
         execution = self.evaluate(result, reason)
         self.test.execution = execution
 
-
+        self.kill_controller()
 
         return execution
 
     def close(self):
         self.kill_beamng()
-        self.kill_controller()
         self.server.close()
 
 

@@ -3,6 +3,11 @@ local M = {}
 egoVehicleState = {}
 egoVehicleState['steering'] = 0
 
+egoGForce = {}
+egoGForce['gx'] = 0
+egoGForce['gy'] = 0
+egoGForce['gz'] = 0
+
 local helper = require('scenario/scenariohelper')
 local socket = require('socket.socket')
 
@@ -154,8 +159,14 @@ local function checkEgoVehiclePresent()
 end
 
 local function requestEgoVehicleData()
+    -- Send the player vehicle a command to send back to this object a message with the state set to the value at the receiving end 
     local command = "obj:queueGameEngineLua('egoVehicleState[\"steering\"] = '..input.state.steering.val)"
     be:getPlayerVehicle(0):queueLuaCommand(command)
+    
+    -- Get the values of the GForce. There's should be a smarted way of doing so, but I cannot find it right now
+    be:getPlayerVehicle(0):queueLuaCommand("obj:queueGameEngineLua('egoGForce[\"gx\"] = '..sensors.gx)")
+    be:getPlayerVehicle(0):queueLuaCommand("obj:queueGameEngineLua('egoGForce[\"gy\"] = '..sensors.gy)")
+    be:getPlayerVehicle(0):queueLuaCommand("obj:queueGameEngineLua('egoGForce[\"gz\"] = '..sensors.gz)")
 end
 
 local function handleSocketInput()
@@ -182,10 +193,22 @@ local function produceSocketOutput()
             local message = carData.pos.x .. ';' .. carData.pos.y .. ';' .. carData.pos.z
             message = message .. ';' .. carData.damage
             message = message .. ';' .. egoVehicleState['steering']
+            
+            message = message .. ';' .. egoGForce['gx'] .. ';' .. egoGForce['gy'] .. ';' .. egoGForce['gz']
+            
             message = message .. ';' .. carData.vel.x .. ';' .. carData.vel.y .. ';' .. carData.vel.z
             message = message .. '\n'
             message = "STATE:"..message
-            sendSocketMessage(message)
+
+            -- 
+            -- log('I', carData.pos.x .. ';' .. carData.pos.y .. ';' .. carData.pos.z)
+            -- log('I', carData.damage )
+            -- log('I', egoVehicleState['steering'])
+            -- log('I', egoGForce['gx'] .. ';' .. egoGForce['gy'] .. ';' .. egoGForce['gz'] )
+            -- log('I', carData.vel.x .. ';' .. carData.vel.y .. ';' .. carData.vel.z )
+            -- log('I', '')
+
+           sendSocketMessage(message)
         end
     end
 end

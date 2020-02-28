@@ -451,7 +451,13 @@ class CarState:
         dic['pos_x'] = state.pos_x
         dic['pos_y'] = state.pos_y
         dic['pos_z'] = state.pos_z
+
         dic['steering'] = state.steering
+
+        dic['g_x'] = state.g_x
+        dic['g_y'] = state.g_y
+        dic['g_z'] = state.g_z
+
         dic['vel_x'] = state.vel_x
         dic['vel_y'] = state.vel_y
         dic['vel_z'] = state.vel_z
@@ -463,10 +469,12 @@ class CarState:
         default.update(state_dict)
         state_dict = default
         state = CarState(test, state_dict['pos_x'], state_dict['pos_y'], state_dict['pos_z'],
-                         0, state_dict['steering'], state_dict['vel_x'], state_dict['vel_y'], state_dict['vel_z'])
+                         0, state_dict['steering'],
+                         state_dict['g_x'], state_dict['g_y'], state_dict['g_z'],
+                         state_dict['vel_x'], state_dict['vel_y'], state_dict['vel_z'])
         return state
 
-    def __init__(self, test, pos_x, pos_y, pos_z, damage, steering, vel_x,
+    def __init__(self, test, pos_x, pos_y, pos_z, damage, steering, g_x, g_y, g_z, vel_x,
                  vel_y, vel_z):
         self.test = test
         self.pos_x = pos_x
@@ -474,6 +482,9 @@ class CarState:
         self.pos_z = pos_z
         self.damage = damage
         self.steering = steering
+        self.g_x = g_x
+        self.g_y = g_y
+        self.g_z = g_z
         self.vel_x = vel_x
         self.vel_y = vel_y
         self.vel_z = vel_z
