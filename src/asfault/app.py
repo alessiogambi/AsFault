@@ -265,6 +265,7 @@ def _run_test(ext, show, output, test_file):
 
     # This starts the external client but uses BeamNG AI nevertheless
     execution = runner.run()
+    runner.close()
 
     # Create output folder if missing
     if not os.path.exists(output):
