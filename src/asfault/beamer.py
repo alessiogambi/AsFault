@@ -875,7 +875,7 @@ class TestRunner:
         return execution
 
     def close(self):
-        self.kill_beamng()
+        ## Not sure why this is not automatically called upon finishing the execution...
         self.server.close()
 
 
