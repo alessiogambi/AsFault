@@ -96,13 +96,19 @@ def replay(env, flush_output):
 
 @evolve.command()
 @click.option('--seed', default=milliseconds())
-@click.option('--budget', default=100)
+@click.option('--generations', default=100)
 @click.option('--render', is_flag=True)
 @click.option('--show', is_flag=True)
-def bng(seed, budget, render, show):
-    l.info('Starting experiment with seed: %s', seed)
-    l.info('Starting experiment with budget: %s', budget)
-    experiments.experiment(seed, budget, render, show)
+@click.option('--time-limit', default=-1)
+def bng(seed, generations, render, show, time_limit):
+    l.info('Starting BeamNG.AI with seed: {}'.format(seed))
+
+    if time_limit > 0:
+        l.info('Time limit will be enforced at: {}'.format(time_limit))
+    else:
+        l.info('No time limit enforced')
+
+    experiments.experiment(seed, generations, render=render, show=show, time_limit=time_limit)
 
 
 @evolve.command()
@@ -150,8 +156,7 @@ def ext(seed, generations, render, uniq, time_limit, ctrl):
     # estimator = TurnAndLengthEstimator()
     # experiments.experiment_out(rng, evaluator, selector, estimator, factory,
     #                            True, generations, render=render)
-    budget = generations
-    experiments.experiment(seed, budget, time_limit=time_limit, render=render, show=False, factory=factory)
+    experiments.experiment(seed, generations, time_limit=time_limit, render=render, show=False, factory=factory)
 
 
 @evolve.command()
