@@ -26,6 +26,8 @@ from asfault.evolver import *
 from asfault.graphing import *
 from asfault.plotter import *
 
+from asfault.repair_crossover import *
+
 BEAMNG_FILES = 'beamng_templates'
 
 RESULTS_FILE = 'results.json'
@@ -108,6 +110,9 @@ def bng(seed, generations, render, show, time_limit):
     else:
         l.info('No time limit enforced')
 
+    # TODO Force the use of BeamNG.AI
+    config.ex.ai_controlled = 'true'
+
     experiments.experiment(seed, generations, render=render, show=show, time_limit=time_limit)
 
 
@@ -185,6 +190,12 @@ def mock(seed, generations, show, render):
 
     gen = TestSuiteGenerator(rng, evaluator, selector, estimator, factory)
 
+    if c.ev.attempt_repair:
+        l.info("(Mock) REPAIR: Enabled")
+        gen.joiner = RepairJoin(rng, c.ev.bounds)
+    else:
+        l.info("(Mock) REPAIR: Disabled")
+
     step = 0
     for state in gen.evolve_suite(generations):
         if plotter:
@@ -260,8 +271,10 @@ def _run_test(ext, show, output, test_file):
     l.info('Output result to: %s', output_file)
     if ext:
         l.info('Configure the external AI: %s', ext)
+        config.ex.ai_controlled = 'false'
     else:
         l.info('Driving with BeamNG.AI')
+        config.ex.ai_controlled = 'true'
 
     # This starts the external client but uses BeamNG AI nevertheless
     execution = runner.run()
