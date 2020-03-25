@@ -9,6 +9,8 @@ from asfault.beamer import *
 from asfault.evolver import *
 from asfault.plotter import *
 from asfault.tests import *
+from asfault.repair_crossover import *
+
 
 CSV_HEADER = [
     'TimeStamp',
@@ -96,7 +98,14 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
     exported_tests_exec = set()
 
     gen = TestSuiteGenerator(rng, evaluator, selector, estimator, factory,
-                             sort_pop=sort_pop, cutoff=2 ** 64)
+                         sort_pop=sort_pop, cutoff=2 ** 64)
+
+    if c.ev.attempt_repair:
+        l.info("REPAIR: Enabled")
+        gen.joiner = RepairJoin(rng, c.ev.bounds)
+    else:
+        l.info("REPAIR: Disabled")
+
     gen.random_exp = random_exp
 
     generation = 0
@@ -107,6 +116,7 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
         plotter = EvolutionPlotter()
         plotter.start()
 
+    # data contains the current population of tests.
     for step, data in gen.evolve_suite(budget, time_limit=time_limit):
         evo_step += 1
         evo = list()
@@ -121,6 +131,9 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
                     save_plot(out_file, dpi=c.pt.dpi_intermediate)
 
         if step == 'finish_generation' or step == 'looped':
+            # Dump the population to log file
+            l.warning("GENERATION %s: %s", "{:03d}".format(generation), ", ".join([str(test.test_id) for test in data]))
+
             for test in data:
                 if test not in exported_tests_gen:
                     export_test_gen(plots_dir, tests_dir, test, render)
@@ -128,6 +141,10 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
 
         if step == 'finish_evolution':
             final_path = c.rg.get_final_path()
+
+            # Dump the population to log file
+            l.warning("FINAL TEST SUITE: %s", ", ".join([str(test.test_id) for test in data]))
+
             for test in data:
                 export_test_exec(final_path, final_path, test, render)
 
@@ -135,6 +152,7 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
             generation += 1
 
             population, evaluation, total_evol, total_eval = data
+
             for test in population:
                 if test.test_id not in exported_tests_exec:
                     export_test_exec(plots_dir, execs_dir, test, render)
@@ -158,7 +176,8 @@ def experiment_out(rng, evaluator, selector, estimator, factory, sort_pop, budge
     out_file = c.rg.get_results_path()
     with open(out_file, 'w'):
         pass
-    for evolution in run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budget, time_limit=time_limit,  random_exp=random_exp, render=render, show=show):
+    for evolution in run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budget,
+                                    time_limit=time_limit,  random_exp=random_exp, render=render, show=show):
         out_file = c.rg.get_results_path()
         now_time = datetime.datetime.now()
         now_time = now_time.isoformat()
