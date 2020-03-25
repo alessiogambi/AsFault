@@ -113,6 +113,8 @@ class EvolutionConfig:
     PARTIAL_MERGE_D_COUNT = 1
     TRY_ALL_OPS = True
 
+    ATTEMPT_REPAIR = False
+
     @staticmethod
     def get_default():
         ret = {}
@@ -132,6 +134,8 @@ class EvolutionConfig:
         ret['partial_merge_m_count'] = EvolutionConfig.PARTIAL_MERGE_M_COUNT
         ret['partial_merge_d_count'] = EvolutionConfig.PARTIAL_MERGE_D_COUNT
         ret['try_all_ops'] = EvolutionConfig.TRY_ALL_OPS
+
+        ret['attempt_repair'] = EvolutionConfig.ATTEMPT_REPAIR
 
         return ret
 
@@ -154,6 +158,8 @@ class EvolutionConfig:
         self.partial_merge_m_count = cfg.get('partial_merge_m_count', EvolutionConfig.PARTIAL_MERGE_M_COUNT)
         self.partial_merge_d_count = cfg.get('partial_merge_d_count', EvolutionConfig.PARTIAL_MERGE_D_COUNT)
         self.try_all_ops = cfg.get('try_all_ops', EvolutionConfig.TRY_ALL_OPS)
+
+        self.attempt_repair = cfg.get('attempt_repair', EvolutionConfig.ATTEMPT_REPAIR)
 
 
 class PlotConfig:
