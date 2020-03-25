@@ -393,14 +393,18 @@ class TestSuiteGenerator:
 
     def crossover(self, mom, dad):
         choice = self.rng.random()
-        choices = [self.merger]
-        if c.ev.try_all_ops:
-            choices.append(self.joiner)
-        l.debug('Picking crossover %s < %s ?', choice, c.ev.join_probability)
+        choices = []
+
+        # l.debug('Picking crossover %s < %s ?', choice, c.ev.join_probability)
         if choice < c.ev.join_probability:
             choices = [self.joiner]
+            l.info('Crossover using for %s', choice)
+        else:
             if c.ev.try_all_ops:
                 choices.append(self.merger)
+                l.info('Crossover using for %s', choice)
+            else:
+                l.info('Skip Crossover')
 
         for choice in choices:
             children, aux = choice.try_all(mom, dad, self)
