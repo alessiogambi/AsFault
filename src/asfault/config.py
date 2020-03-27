@@ -337,6 +337,7 @@ class ExecutionConfig:
     GOAL_DISTANCE = 10
     MIN_SPEED = 2
     STANDSTILL_THRESHOLD = 120
+    DONT_STOP_AT_OBE= False
 
     @staticmethod
     def get_default():
@@ -360,6 +361,8 @@ class ExecutionConfig:
         ret['min_speed'] = ExecutionConfig.MIN_SPEED
         ret['standstill_threshold'] = ExecutionConfig.STANDSTILL_THRESHOLD
         ret['direction_agnostic_boundary'] = ExecutionConfig.DIRECTION_AGNOSTIC_BOUNDARY
+
+        ret['dont_stop_at_obe'] = ExecutionConfig.DONT_STOP_AT_OBE
 
         return ret
 
@@ -385,6 +388,8 @@ class ExecutionConfig:
         self.min_speed = cfg.get('min_speed', ExecutionConfig.MIN_SPEED)
         self.standstill_threshold = cfg.get('standstill_threshold', ExecutionConfig.STANDSTILL_THRESHOLD)
         self.direction_agnostic_boundary = cfg.get('direction_agnostic_boundary', ExecutionConfig.DIRECTION_AGNOSTIC_BOUNDARY)
+
+        self.dont_stop_at_obe = cfg.get('dont_stop_at_obe', ExecutionConfig.DONT_STOP_AT_OBE)
 
     def get_level_dir(self):
         return os.path.join(self.beamng_dir, self.level_dir)

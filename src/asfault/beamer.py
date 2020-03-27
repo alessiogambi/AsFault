@@ -716,20 +716,34 @@ class TestRunner:
                 return RESULT_SUCCESS, REASON_GOAL_REACHED
 
             off_track = self.off_track(state)
+
             if off_track:
                 if not self.is_oob:
+                    l.warning('OBE Detected')
+
                     self.is_oob = True
                     self.oobs += 1
                     if self.current_segment:
                         seg_key = self.current_segment.key
                         self.seg_oob_count[seg_key] += 1
                     self.oob_speeds.append(state.get_speed())
+
+                    # Stop the execution UNLESS we explicitly disable it
+                    if c.ex.dont_stop_at_obe:
+                        l.debug("Don't stop @ OBE enabled, keep going")
+                        pass
+                    else:
+                        l.info('Ending test due to vehicle going off track.')
+                        return RESULT_FAILURE, REASON_OFF_TRACK
+                else:
+                    # TODO what's the meaning of this branch?  that we are still in OBE?
+                    pass
+
             else:
                 self.is_oob = False
                 self.current_segment = state.get_segment()
 
-                #l.info('Ending test due to vehicle going off track.')
-                # return RESULT_FAILURE, REASON_OFF_TRACK
+
 
             damaged = self.vehicle_damaged(state)
             if damaged:
