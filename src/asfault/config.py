@@ -324,6 +324,9 @@ class ExecutionConfig:
     HOST = 'localhost'
     PORT = 32512
     MAX_SPEED = 'true'
+
+    SPEED_LIMIT = 0
+
     AI_CONTROLLED = 'true'
     NAVI_GRAPH = 'false'
     ENV_COUNT = 1
@@ -343,7 +346,10 @@ class ExecutionConfig:
         ret['level_dir'] = ExecutionConfig.LEVEL_DIR
         ret['host'] = ExecutionConfig.HOST
         ret['port'] = ExecutionConfig.PORT
+
         ret['max_speed'] = ExecutionConfig.MAX_SPEED
+        ret['speed_limit'] = ExecutionConfig.SPEED_LIMIT
+
         ret['ai_controlled'] = ExecutionConfig.AI_CONTROLLED
         ret['navi_graph'] = ExecutionConfig.NAVI_GRAPH
         ret['env_count'] = ExecutionConfig.ENV_COUNT
@@ -366,7 +372,10 @@ class ExecutionConfig:
         self.host = cfg.get('host', ExecutionConfig.HOST)
         self.port = cfg.get('port', ExecutionConfig.PORT)
         self.ai_controlled = cfg.get('ai_controlled', ExecutionConfig.AI_CONTROLLED)
+
         self.max_speed = cfg.get('max_speed', ExecutionConfig.MAX_SPEED)
+        self.speed_limit = cfg.get('speed_limit', ExecutionConfig.SPEED_LIMIT)
+
         self.navi_graph = cfg.get('navi_graph', ExecutionConfig.NAVI_GRAPH)
         self.env_count = cfg.get('env_count', ExecutionConfig.ENV_COUNT)
         self.risk = cfg.get('risk', ExecutionConfig.RISK)

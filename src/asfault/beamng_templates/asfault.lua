@@ -148,6 +148,10 @@ local function checkEgoVehiclePresent()
                 waypoints = { {{waypoints}} },
                 driveInLane = 'on',
                 aggression = {{risk}},
+                
+                routeSpeed = {{speed_limit}},
+                routeSpeedMode = '{{speed_limit_mode}}',
+
                 resetLearning = true
             }
             if aiControlled then

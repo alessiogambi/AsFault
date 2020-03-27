@@ -660,8 +660,11 @@ class TestSuiteGenerator:
                     if state[0] == 'finish_generation':
                         nextgen = state[1]
             else:
+                # ELITISM: NextGen always contains the BEST individual from the previous population? But best is the
+                # last one?
                 nextgen = [self.population[-1]]
-                #nextgen = []
+
+                # INTRODUCE NEW RANDOM INDIVIDUALS IN THE POPULATION
                 if self.roll_introduction():
                     test = self.generate_single_test()
                     if self.is_new(test):

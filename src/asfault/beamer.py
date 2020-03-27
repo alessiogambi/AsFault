@@ -518,6 +518,12 @@ def generate_test_lua(test, **options):
     host = options.get('host', c.ex.host)
     port = options.get('port', c.ex.port)
     ai_controlled = c.ex.ai_controlled
+
+    # BeamNG requires speed limit in m/s
+    speed_limit = c.ex.speed_limit
+    speed_limit_mode = 'limit' if speed_limit > 0 else 'off'
+
+    # This control whether BeamNG can use supernatural speed for the simulation
     max_speed = c.ex.max_speed
     navi_graph = c.ex.navi_graph
     risk = options.get('risk', c.ex.risk)
@@ -529,7 +535,9 @@ def generate_test_lua(test, **options):
                                                      navi_graph=navi_graph,
                                                      port=port, risk=risk,
                                                      waypoints=waypoints,
-                                                     time_left=time_left)
+                                                     time_left=time_left,
+                                                     speed_limit=speed_limit,
+                                                     speed_limit_mode=speed_limit_mode)
     return lua
 
 
