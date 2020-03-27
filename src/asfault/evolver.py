@@ -190,15 +190,38 @@ def gen_mock_runner_factory(rng):
         return runner
     return factory
 
+
 class LaneDistanceEvaluator(SuiteEvaluator):
+    """ Try to maximize the lane distance but cap it to 1.0 in case of OBE. We are not interested in the criticality
+    of OBEs here"""
+
     def evaluate_test(self, test, suite):
         if test.execution.result == RESULT_SUCCESS:
             fitness = test.execution.maximum_distance / c.ev.lane_width
             fitness = min(fitness, 1.0)
         else:
-            fitness = -1
+            if test.execution.reason == REASON_OFF_TRACK:
+                fitness = test.execution.maximum_distance / c.ev.lane_width
+                fitness = min(fitness, 1.0)
+            else:
+                fitness = -1
 
         return fitness, test.execution.reason
+
+
+class MaxLaneDistanceEvaluator(SuiteEvaluator):
+    """ Try to maximize the (BOUNDED) lane distance. We are interested in the Criticality of the OBE."""
+    def evaluate_test(self, test, suite):
+        if test.execution.result == RESULT_SUCCESS:
+            fitness = test.execution.maximum_distance / c.ev.lane_width
+        else:
+            if test.execution.reason == REASON_OFF_TRACK:
+                fitness = test.execution.maximum_distance / c.ev.lane_width
+            else:
+                fitness = -1
+
+        return fitness, test.execution.reason
+
 
 class SegCountEvaluator(SuiteEvaluator):
     def evaluate_test(self, test, suite):
