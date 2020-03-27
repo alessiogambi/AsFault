@@ -672,81 +672,124 @@ class TestSuiteGenerator:
                         nextgen.append(test)
                         yield ('introduce', test)
 
+                # SELECT INDIVIDUALS
                 l.debug('Selecting mates for crossover.')
                 l.debug('Using selector: %s', str(type(self.selector)))
                 pairs = list()
                 total_pairs = len(self.population) + len(self.population)
                 attempts = 0
-                while len(nextgen) < self.max_pop and len(pairs) < total_pairs and attempts <= total_pairs:
-                    attempts += 1
-                    mom = self.selector.select(self.population)
-                    l.debug('Selected mom: %s', str(mom))
-                    dad = self.selector.select(self.population, ignore={mom})
-                    l.debug('Selected dad: %s', str(dad))
 
-                    pair_id = '{}x{}'.format(mom.test_id, dad.test_id)
-                    pair_id2 = '{}x{}'.format(dad.test_id, mom.test_id)
-                    if pair_id in pairs:
-                        continue
-                    if pair_id2 in pairs:
-                        continue
+                # PATCH TO ENABLE 1+1EA
+                #   pop has 1 individual, we mutate it (always), and select the best between original and mutation
+                if self.max_pop == 1:
+                    l.info("1+1 EA")
+                    resident = self.population[0]
+                    mutated, aux = self.mutate(resident)
+                    # Mutation might go wrong
+                    if mutated:
+                        if self.is_new(mutated):
+                            # TODO Not sure we actually need test_file
+                            test_file = c.rg.get_plots_path()
+                            test_file = os.path.join(test_file, 'test_{:06}.png'.format(mutated.test_id))
+                            yield ('mutated', (resident, mutated, aux))
 
-                    pairs.append(pair_id)
-                    pairs.append(pair_id2)
+                            # At this point we add this into nextGen and move on to the evaluation part
+                            nextgen.append(mutated)
+                        else:
+                            l.warning("Mutated individual %s is NOT considered new/novel", mutated.test_id)
+                    else:
+                        l.info("Invalid mutation %s", aux)
 
-                    if mom == dad:
-                        continue
+                else:
+                    # This works Only if there are more than 1? INDIVIDUALS
+                    while len(nextgen) < self.max_pop and len(pairs) < total_pairs and attempts <= total_pairs:
+                        attempts += 1
+                        mom = self.selector.select(self.population)
+                        l.debug('Selected mom: %s', str(mom))
+                        dad = self.selector.select(self.population, ignore={mom})
+                        l.debug('Selected dad: %s', str(dad))
 
-                    children, aux = self.crossover(mom, dad)
-                    if children:
-                        l.debug('Produced %s children from %s x %s crossover', len(children), str(mom), str(dad))
+                        pair_id = '{}x{}'.format(mom.test_id, dad.test_id)
+                        pair_id2 = '{}x{}'.format(dad.test_id, mom.test_id)
+                        if pair_id in pairs:
+                            continue
+                        if pair_id2 in pairs:
+                            continue
 
-                        l.debug('Mutating children.')
-                        mutations = []
-                        for child in children:
-                            if self.is_new(child):
-                                if self.roll_mutation(child):
-                                    mutated, aux = self.mutate(child)
-                                    if mutated:
-                                        if self.is_new(mutated):
-                                            mutations.append(mutated)
+                        pairs.append(pair_id)
+                        pairs.append(pair_id2)
+
+                        if mom == dad:
+                            continue
+
+                        # CROSSOVER
+                        children, aux = self.crossover(mom, dad)
+                        if children:
+                            l.debug('Produced %s children from %s x %s crossover', len(children), str(mom), str(dad))
+
+                            l.debug('Mutating children.')
+                            mutations = []
+                            for child in children:
+                                if self.is_new(child):
+                                    if self.roll_mutation(child):
+                                        mutated, aux = self.mutate(child)
+                                        if mutated:
+                                            if self.is_new(mutated):
+                                                mutations.append(mutated)
+                                                test_file = c.rg.get_plots_path()
+                                                test_file = os.path.join(test_file, 'test_{:06}.png'.format(mutated.test_id))
+                                                #plot_test(test_file, mutated)
+                                                yield ('mutated', (child, mutated, aux))
+                                        else:
+                                            mutations.append(child)
+                                            yield ('crossedover', (mom, dad, children, aux))
                                             test_file = c.rg.get_plots_path()
-                                            test_file = os.path.join(test_file, 'test_{:06}.png'.format(mutated.test_id))
-                                            #plot_test(test_file, mutated)
-                                            yield ('mutated', (child, mutated, aux))
+                                            test_file = os.path.join(test_file, 'test_{:06}.png'.format(child.test_id))
+                                            #plot_test(test_file, child)
                                     else:
                                         mutations.append(child)
                                         yield ('crossedover', (mom, dad, children, aux))
                                         test_file = c.rg.get_plots_path()
                                         test_file = os.path.join(test_file, 'test_{:06}.png'.format(child.test_id))
                                         #plot_test(test_file, child)
-                                else:
-                                    mutations.append(child)
-                                    yield ('crossedover', (mom, dad, children, aux))
-                                    test_file = c.rg.get_plots_path()
-                                    test_file = os.path.join(test_file, 'test_{:06}.png'.format(child.test_id))
-                                    #plot_test(test_file, child)
 
-                        for child in mutations:
-                            if len(nextgen) < self.max_pop:
-                                #if self.is_new(child):
-                                nextgen.append(child)
+                            for child in mutations:
+                                if len(nextgen) < self.max_pop:
+                                    nextgen.append(child)
 
+            # ELITISM: PAD NEW GENERATION WITH BEST INDIVIDUALS
             while len(nextgen) < self.max_pop:
                 elite = self.population[-1]
                 del self.population[-1]
                 if elite not in nextgen:
                     nextgen.append(elite)
 
+            # EVALUATION of the new population (requires to set self.population)
+            # Note that nextgen ALWAYS contains the BEST individual of the current population
             self.population = nextgen
             self.step += 1
             total_evol_time += self.end_evol_clock()
 
-            l.debug("Evaluating test suite after evolution step.")
+            l.info("Evaluating test suite after evolution step.")
             l.debug('Using evaluator: %s', str(type(self.evaluator)))
             self.run_suite()
             evaluation = self.evaluator.evaluate_suite(self.population)
             total_eval_time += evaluation.duration
+
+            # AT THIS POINT WE CAN COMPARE OLD AND NEW TO DECIDE WHICH INDIVIDUALS TO KEEP AROUND
+            if self.max_pop == 1:
+                # At this point we have a population made of at most 2 individuals, and we pick the one which has
+                # the higher score. Note that using LaneDist once we get an obe score goes to 1, no matter how many
+                # OBEs the test caused.
+                # If we keep the original one, we might end up in trying out all the mutations cyclically, while if we
+                # select always the new one, we are piling up mutations. A third option, would be to keep the test
+                # which achieved the most OBEs... Which eventually results in mutating the best one over and over...
+                #
+                # Hence I decide to keep the new ones to favor the exploration no matter the number of OBEs.
+                l.info("1+1EA: selecting best individual between %s", ', '.join(['--'.join([str(test.test_id), str(test.score)]) for test in self.population]))
+                # Ensures that only one element survives
+                self.population = sorted(self.population, key=lambda t: t.score, reverse=True)[0:1]
+                l.info("1+1EA: Best individual is %s", self.population[-1].test_id)
 
             l.debug("Total Eval Time %s", str(total_eval_time))
             l.debug("Total Evol Time %s", str(total_evol_time))
