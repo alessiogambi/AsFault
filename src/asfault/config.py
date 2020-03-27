@@ -98,6 +98,9 @@ class AsFaultEnv:
 
 class EvolutionConfig:
     LANE_WIDTH = 4.0
+    # Note that to claim an OBE at least half of the car is already out...
+    TOLERANCE = 0.0
+
     L_LANES = 1
     R_LANES = 1
     MAX_ANGLE = 5.0
@@ -120,6 +123,8 @@ class EvolutionConfig:
         ret = {}
 
         ret['lane_width'] = EvolutionConfig.LANE_WIDTH
+        ret['tolerance'] = EvolutionConfig.TOLERANCE
+
         ret['l_lanes'] = EvolutionConfig.L_LANES
         ret['r_lanes'] = EvolutionConfig.R_LANES
         ret['max_angle'] = EvolutionConfig.MAX_ANGLE
@@ -144,6 +149,8 @@ class EvolutionConfig:
             cfg = json.loads(infile.read())
 
         self.lane_width = cfg.get('lane_width', EvolutionConfig.LANE_WIDTH)
+        self.tolerance = cfg.get('tolerance', EvolutionConfig.TOLERANCE)
+
         self.l_lanes = cfg.get('l_lanes', EvolutionConfig.L_LANES)
         self.r_lanes = cfg.get('r_lanes', EvolutionConfig.R_LANES)
         self.max_angle = cfg.get('max_angle', EvolutionConfig.MAX_ANGLE)

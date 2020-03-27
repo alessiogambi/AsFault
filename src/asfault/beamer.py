@@ -798,8 +798,14 @@ class TestRunner:
 
     def off_track(self, carstate):
         distance = carstate.get_centre_distance()
+        # TODO Why lane_width is under Evolution and not Execution configuration?
         if distance > c.ev.lane_width / 2.0:
-            return True
+            # Car is off track
+            if distance >= c.ev.lane_width / 2.0 + c.ev.tolerance:
+                return True
+            else:
+                l.debug("Car is off track but within the tolerance value. ")
+                return False
 
         return False
 
