@@ -592,6 +592,7 @@ class TestRunner:
 
         self.oobs = 0
         self.is_oob = False
+        self.observed_obe_states = 0
 
         self.race_started = False
         self.too_slow = 0
@@ -717,9 +718,11 @@ class TestRunner:
 
             off_track = self.off_track(state)
 
+            # Do not fail the test right after the OBE is observed but allow to specify some tolerance and bounded
+            #    interval
             if off_track:
                 if not self.is_oob:
-                    l.warning('OBE Detected')
+                    l.warning('New OBE Detected')
 
                     self.is_oob = True
                     self.oobs += 1
@@ -728,18 +731,37 @@ class TestRunner:
                         self.seg_oob_count[seg_key] += 1
                     self.oob_speeds.append(state.get_speed())
 
-                    # Stop the execution UNLESS we explicitly disable it
+                    self.observed_obe_states += 1
+
                     if c.ex.dont_stop_at_obe:
                         l.debug("Don't stop @ OBE enabled, keep going")
                         pass
+                    elif self.observed_obe_states <= c.ex.observation_interval:
+                        l.info('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                        self.observed_obe_states += 1
                     else:
                         l.info('Ending test due to vehicle going off track.')
                         return RESULT_FAILURE, REASON_OFF_TRACK
                 else:
-                    # TODO what's the meaning of this branch?  that we are still in OBE?
+                    l.debug("- Observed OBE state")
+                    if c.ex.dont_stop_at_obe:
+                        l.debug("Don't stop @ OBE enabled, keep going")
+                        pass
+                    elif self.observed_obe_states <= c.ex.observation_interval:
+                        l.info('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                        self.observed_obe_states += 1
+                    else:
+                        l.info('Ending test due to vehicle going off track (did not come back on track).')
+                        return RESULT_FAILURE, REASON_OFF_TRACK
                     pass
 
             else:
+                self.observed_obe_states = 0
+
+                if self.is_oob and not c.ex.dont_stop_at_obe:
+                    l.info('Ending test due to vehicle going off track (came back on track).')
+                    return RESULT_FAILURE, REASON_OFF_TRACK
+
                 self.is_oob = False
                 self.current_segment = state.get_segment()
 

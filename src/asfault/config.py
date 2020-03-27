@@ -337,7 +337,8 @@ class ExecutionConfig:
     GOAL_DISTANCE = 10
     MIN_SPEED = 2
     STANDSTILL_THRESHOLD = 120
-    DONT_STOP_AT_OBE= False
+    DONT_STOP_AT_OBE = False
+    OBSERVATION_INTERVAL = 10
 
     @staticmethod
     def get_default():
@@ -363,6 +364,7 @@ class ExecutionConfig:
         ret['direction_agnostic_boundary'] = ExecutionConfig.DIRECTION_AGNOSTIC_BOUNDARY
 
         ret['dont_stop_at_obe'] = ExecutionConfig.DONT_STOP_AT_OBE
+        ret['observation_interval'] = ExecutionConfig.OBSERVATION_INTERVAL
 
         return ret
 
@@ -390,6 +392,7 @@ class ExecutionConfig:
         self.direction_agnostic_boundary = cfg.get('direction_agnostic_boundary', ExecutionConfig.DIRECTION_AGNOSTIC_BOUNDARY)
 
         self.dont_stop_at_obe = cfg.get('dont_stop_at_obe', ExecutionConfig.DONT_STOP_AT_OBE)
+        self.observation_interval = cfg.get('observation_interval', ExecutionConfig.OBSERVATION_INTERVAL)
 
     def get_level_dir(self):
         return os.path.join(self.beamng_dir, self.level_dir)

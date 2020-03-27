@@ -620,14 +620,7 @@ class TestSuiteGenerator:
                 l.info('Candidate test %s is not considered unique enough. Too similar to existing test: %s ~= %s, %s',
                        str(candidate), str(candidate), str(test), distance)
                 return False
-        return True
 
-        for test in self.population:
-            difference = candidate.get_path_difference(test)
-            if difference < UNIQUE_THRESHOLD:
-                l.info('Candidate test %s is not considered unique enough. Too similar to existing test: %s ~= %s, %s',
-                       str(candidate), str(candidate), str(test), difference)
-                return False
         l.info('Candidate test %s is considered new.', str(candidate))
         return True
 
