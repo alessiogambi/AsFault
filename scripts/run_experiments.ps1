@@ -1,22 +1,10 @@
 Param (
-    [Parameter(Mandatory=$true)]$envDir,
     [Parameter(Mandatory=$true)]$experimentsDir,
     [Parameter(Mandatory=$true)]$timeLimit
 )
 
-# $envDir=".esec-fse-20-beamng-small-env"
-# $experimentsDir="./FSE20-beamng-small"
-
-# $envDir=".esec-fse-20-beamng-small-env-with-repair"
-# $experimentsDir="./FSE20-beamng-small-with-repair"
-
-# $envDir=".esec-fse-20-beamng-large-env"
-# $experimentsDir="./FSE20-beamng-large"
-
-# $envDir=".esec-fse-20-beamng-large-env-with-repair"
-# $experimentsDir="./FSE20-beamng-large-with-repair"
-
-$generations=100
+# This is large on purpose to let timeLimit trigger
+$generations=1000
 
 dir $experimentsDir -Directory |
 Foreach-Object {
@@ -28,12 +16,15 @@ Foreach-Object {
     if (Test-Path -Path $log -PathType Leaf){
         "Experiment $experiment already run. Skip it"
     } else {
-        "Executing experiment $experiment"
-        $env = "$($experiment)\$envDir"
-
-        # Execute the experiment from the right folder
-        cd C:\Users\Alessio\AsFault
-        C:\Users\Alessio\AsFault\.alessio\Scripts\python.exe .\src\asfault\app.py --log $log evolve --env $env bng --generations $generations --time-limit $timeLimit --render
-        cd C:\Users\Alessio\AsFault\scripts
+        # Look for env folders and execute them
+        ls $experiment .*-env -Directory |
+        Foreach-Object {
+            $environmentDir = $_.FullName 
+            "Executing experiment $experiment with environment $environmentDir"
+            # Execute the experiment from the right folder
+            cd C:\Users\Alessio\AsFault
+            C:\Users\Alessio\AsFault\.alessio\Scripts\python.exe .\src\asfault\app.py --log $log evolve --env $environmentDir bng --generations $generations --time-limit $timeLimit --render
+            cd C:\Users\Alessio\AsFault\scripts
+        }
     }
 }   
