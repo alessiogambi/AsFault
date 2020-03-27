@@ -212,6 +212,8 @@ def experiment(seed, budget, time_limit=-1, render=False, show=False, factory=No
         evaluator = RandomEvaluator(rng)
     elif c.ev.evaluator == 'uniqlanedist':
         evaluator = UniqueLaneDistanceEvaluator()
+    elif c.ev.evaluator == 'max_lanedist':
+        evaluator = MaxLaneDistanceEvaluator()
     else:
         evaluator = LaneDistanceEvaluator()
 
