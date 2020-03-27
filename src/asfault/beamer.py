@@ -520,7 +520,7 @@ def generate_test_lua(test, **options):
     ai_controlled = c.ex.ai_controlled
 
     # BeamNG requires speed limit in m/s
-    speed_limit = c.ex.speed_limit
+    speed_limit = c.ex.speed_limit / 3.6
     speed_limit_mode = 'limit' if speed_limit > 0 else 'off'
 
     # This control whether BeamNG can use supernatural speed for the simulation
