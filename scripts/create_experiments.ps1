@@ -9,6 +9,7 @@ Param (
 $start..$end |
    Foreach-Object {
 	$exps_dir = "$experimentDir/$prefix-$_"
-	New-Item -ItemType "directory" -Path "$exps_dir"
-	Copy-Item $envDir -Destination "$exps_dir/$envDir" -Recurse
+	New-Item -ItemType "directory" -Path "$exps_dir"	
+    $env_name=Split-Path $envDir -Leaf
+    Copy-Item $envDir -Destination "$exps_dir/$env_name" -Recurse
 }
