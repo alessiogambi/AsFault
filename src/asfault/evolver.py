@@ -2,6 +2,7 @@ import datetime
 import logging as l
 import random
 import sys
+import math
 
 from time import time, sleep
 
@@ -127,10 +128,15 @@ class SuiteEvaluator:
         timeouts = 0
 
         for idx, test in enumerate(suite):
-            l.info('Evaluating test: {}/{}'.format(idx + 1, len(suite)))
             score, reason = self.evaluate_test(test, suite)
             test.score = score
             test.reason = reason
+
+            l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(suite), test.score, test.reason))
+
+            if math.isnan(score):
+                # This test did not run, so we skip the evaluation part
+                continue
 
             if score < min:
                 min = score
@@ -157,7 +163,7 @@ class SuiteEvaluator:
 
 
 class StructureEvaluator(SuiteEvaluator):
-
+    """This evaluator does not require the test to be executed"""
     def evaluate_test(self, test, suite):
         l.info('Evaluating test: %s', str(test))
         path_line = test.get_path_polyline()
@@ -189,6 +195,7 @@ class BeamNGEvaluator(SuiteEvaluator):
         else:
             return -1, -1
 
+
 class MockRunner:
     def __init__(self, rng, test):
         self.rng = rng
@@ -200,6 +207,7 @@ class MockRunner:
 
     def close(self):
         pass
+
 
 def gen_mock_runner_factory(rng):
     def factory(test):
@@ -213,6 +221,10 @@ class LaneDistanceEvaluator(SuiteEvaluator):
     of OBEs here"""
 
     def evaluate_test(self, test, suite):
+        # Tests that where not executed cannot be assigned a score
+        if test.execution is None:
+            return math.nan, "Test was not executed"
+
         if test.execution.result == RESULT_SUCCESS:
             fitness = test.execution.maximum_distance / c.ev.lane_width
             fitness = min(fitness, 1.0)
@@ -229,6 +241,10 @@ class LaneDistanceEvaluator(SuiteEvaluator):
 class MaxLaneDistanceEvaluator(SuiteEvaluator):
     """ Try to maximize the (BOUNDED) lane distance. We are interested in the Criticality of the OBE."""
     def evaluate_test(self, test, suite):
+        # Tests that where not executed cannot be assigned a score
+        if test.execution is None:
+            return math.nan, "Test was not executed"
+
         if test.execution.result == RESULT_SUCCESS:
             fitness = test.execution.maximum_distance / c.ev.lane_width
         else:
@@ -257,6 +273,7 @@ class UniquenessEvaluator(SuiteEvaluator):
         ret /= (len(suite) - 1)
         return ret, RESULT_SUCCESS
 
+
 class UniqueLaneDistanceEvaluator(SuiteEvaluator):
     def __init__(self):
         self.lanedist = LaneDistanceEvaluator()
@@ -267,12 +284,18 @@ class UniqueLaneDistanceEvaluator(SuiteEvaluator):
         score_uniq, reason = self.uniq.evaluate_test(test, suite)
         return score_uniq * score_lanedist, reason
 
+
 class RandomEvaluator(SuiteEvaluator):
+    """Return a random evaluation of the individual. Mostly for testing purposed and to implement random generation"""
     def __init__(self, rng):
         self.rng = rng
 
     def evaluate_test(self, test, suite):
+        if test.execution is None:
+            return math.nan, "Test was not executed"
+
         return self.rng.random(), test.execution.reason
+
 
 class MateSelector:
     def select(self, suite, ignore=set()):
@@ -661,6 +684,7 @@ class TestSuiteGenerator:
             l.debug('Evolution butget is %s seconds', str(time_limit))
 
         self.beg_evol_clock()
+
         l.info('Initialising test suite population.')
         for state in self.generate_tests(self.max_pop - len(self.population)):
             if state[0] == 'finish_generation':
@@ -760,7 +784,6 @@ class TestSuiteGenerator:
                             l.warning("Mutated individual %s is NOT considered new/novel", mutated.test_id)
                     else:
                         l.info("Invalid mutation %s", aux)
-
                 else:
                     # This works Only if there are more than 1? INDIVIDUALS
                     while len(nextgen) < self.max_pop and len(pairs) < total_pairs and attempts <= total_pairs:
@@ -825,43 +848,55 @@ class TestSuiteGenerator:
                 if elite not in nextgen:
                     nextgen.append(elite)
 
-            # EVALUATION of the new population (requires to set self.population)
+            # EVALUATION of the new population (requires to set self.population) unless search must be restarted
             # Note that nextgen ALWAYS contains the BEST individual of the current population
             self.population = nextgen
             self.step += 1
             total_evol_time += self.end_evol_clock()
 
-            l.info("Evaluating test suite after evolution step.")
-            l.debug('Using evaluator: %s', str(type(self.evaluator)))
-            self.run_suite()
-            evaluation = self.evaluator.evaluate_suite(self.population)
-            total_eval_time += evaluation.duration
-
-            # AT THIS POINT WE CAN COMPARE OLD AND NEW TO DECIDE WHICH INDIVIDUALS TO KEEP AROUND
-            if self.max_pop == 1:
-                # At this point we have a population made of at most 2 individuals, and we pick the one which has
-                # the higher score. Note that using LaneDist once we get an obe score goes to 1, no matter how many
-                # OBEs the test caused.
-                # If we keep the original one, we might end up in trying out all the mutations cyclically, while if we
-                # select always the new one, we are piling up mutations. A third option, would be to keep the test
-                # which achieved the most OBEs... Which eventually results in mutating the best one over and over...
-                #
-                # Hence I decide to keep the new ones to favor the exploration no matter the number of OBEs.
-                l.info("1+1EA: selecting best individual between %s", ', '.join(['--'.join([str(test.test_id), str(test.score)]) for test in self.population]))
-                # Ensures that only one element survives
-                self.population = sorted(self.population, key=lambda t: t.score, reverse=True)[0:1]
-                l.info("1+1EA: Best individual is %s", self.population[-1].test_id)
-
-            l.debug("Total Eval Time %s", str(total_eval_time))
-            l.debug("Total Evol Time %s", str(total_evol_time))
+            # This executes ALL the tests in one shot
+            for execution in self.run_suite():
+                # Has the execution reached its final goal?
+                if self.search_stopper.stopping_condition_met(execution):
+                    l.info("Search achieved its goal. Restart the search...")
+                    restart_search = True
+                    yield ('goal_achieved', (execution, self.population))
+                    break
 
             # If the time_limit is not -1 we need to enforce it
             if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-                l.info("Enforcing time limit", time_limit,". Exit the evolution loop !")
+                l.info("Enforcing time limit", time_limit, ". Exit the evolution loop !")
                 evaluation.result = TestSuiteEvaluation.RESULT_TIMEOUT
                 break
 
-        if evaluation.result == TestSuiteEvaluation.RESULT_TIMEOUT:
-            yield ('timeout', (self.population, evaluation, total_evol_time, total_eval_time))
-        else:
-            yield ('finish_evolution', self.population)
+            # if not restart_search:
+            if True:
+                l.info("Evaluating test suite after evolution step.")
+                l.debug('Using evaluator: %s', str(type(self.evaluator)))
+
+                evaluation = self.evaluator.evaluate_suite(self.population)
+                total_eval_time += evaluation.duration
+
+                # AT THIS POINT WE CAN COMPARE OLD AND NEW TO DECIDE WHICH INDIVIDUALS TO KEEP AROUND - This will be
+                # overwritten by restart_search
+                if self.max_pop == 1:
+                    # At this point we have a population made of at most 2 individuals, and we pick the one which has
+                    # the higher score. Note that using LaneDist once we get an obe score goes to 1, no matter how many
+                    # OBEs the test caused.
+                    # If we keep the original one, we might end up in trying out all the mutations cyclically, while if we
+                    # select always the new one, we are piling up mutations. A third option, would be to keep the test
+                    # which achieved the most OBEs... Which eventually results in mutating the best one over and over...
+                    #
+                    # Hence I decide to keep the new ones to favor the exploration no matter the number of OBEs.
+                    l.info("1+1EA: selecting best individual between %s", ', '.join(['--'.join([str(test.test_id), str(test.score)]) for test in self.population]))
+                    # Ensures that only one element survives
+                    self.population = sorted(self.population, key=lambda t: t.score, reverse=True)[0:1]
+                    l.info("1+1EA: Best individual is %s", self.population[-1].test_id)
+
+                l.debug("Total Eval Time %s", str(total_eval_time))
+                l.debug("Total Evol Time %s", str(total_evol_time))
+
+                if evaluation.result == TestSuiteEvaluation.RESULT_TIMEOUT:
+                    yield ('timeout', (self.population, evaluation, total_evol_time, total_eval_time))
+                else:
+                    yield ('finish_evolution', self.population)
