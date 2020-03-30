@@ -89,7 +89,7 @@ def get_worst_test(suite):
     return min_test
 
 
-def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=True, show=False):
+def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=True, show=False):
     plots_dir = c.rg.get_plots_path()
     tests_dir = c.rg.get_tests_path()
     execs_dir = c.rg.get_execs_path()
@@ -97,7 +97,7 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
     exported_tests_gen = set()
     exported_tests_exec = set()
 
-    gen = TestSuiteGenerator(rng, evaluator, selector, estimator, factory,
+    gen = TestSuiteGenerator(rng, evaluator, selector, estimator, search_stopper, factory,
                          sort_pop=sort_pop, cutoff=2 ** 64)
 
     if c.ev.attempt_repair:
@@ -129,6 +129,15 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
                     out_file = 'step_{:09}_{}.png'.format(evo_step, step)
                     out_file = os.path.join(plots_dir, out_file)
                     save_plot(out_file, dpi=c.pt.dpi_intermediate)
+
+        if step == 'goal_achieved':
+            l.warning("GOAL ACHIEVED !!!")
+            execution, population = data
+            # Dump whatever tests were generated and possibly executed so far
+            for test in population:
+                if test.test_id not in exported_tests_exec and test.execution:
+                    export_test_exec(plots_dir, execs_dir, test, render)
+                    exported_tests_exec.add(test.test_id)
 
         if step == 'finish_generation' or step == 'looped':
             # Dump the population to log file
@@ -172,11 +181,11 @@ def run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budge
             yield evo
 
 
-def experiment_out(rng, evaluator, selector, estimator, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=False, show=False):
+def experiment_out(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=False, show=False):
     out_file = c.rg.get_results_path()
     with open(out_file, 'w'):
         pass
-    for evolution in run_experiment(rng, evaluator, selector, estimator, factory, sort_pop, budget,
+    for evolution in run_experiment(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget,
                                     time_limit=time_limit,  random_exp=random_exp, render=render, show=show):
         out_file = c.rg.get_results_path()
         now_time = datetime.datetime.now()
@@ -234,5 +243,10 @@ def experiment(seed, budget, time_limit=-1, render=False, show=False, factory=No
         print('Illegal value for estimator: {}'.format(c.ex.estimator))
         sys.exit(-1)
 
-    experiment_out(rng, evaluator, selector, estimator, _factory,
-                   sort_pop, budget, time_limit=time_limit,  random_exp=random_exp, render=render, show=show)
+    search_stopper = NeverStopSearchStopper()
+    if c.ev.search_stopper == "stop_at_obe":
+        search_stopper = StopAtObeSearchStopper()
+
+    experiment_out(rng, evaluator, selector, estimator, search_stopper,
+                   _factory,
+                   sort_pop, budget, time_limit=time_limit, random_exp=random_exp, render=render, show=show)

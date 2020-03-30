@@ -117,6 +117,7 @@ class EvolutionConfig:
     TRY_ALL_OPS = True
 
     ATTEMPT_REPAIR = False
+    SEARCH_STOPPER = None
 
     @staticmethod
     def get_default():
@@ -141,7 +142,7 @@ class EvolutionConfig:
         ret['try_all_ops'] = EvolutionConfig.TRY_ALL_OPS
 
         ret['attempt_repair'] = EvolutionConfig.ATTEMPT_REPAIR
-
+        ret['search_stopper'] = EvolutionConfig.SEARCH_STOPPER
         return ret
 
     def __init__(self, path):
@@ -167,6 +168,7 @@ class EvolutionConfig:
         self.try_all_ops = cfg.get('try_all_ops', EvolutionConfig.TRY_ALL_OPS)
 
         self.attempt_repair = cfg.get('attempt_repair', EvolutionConfig.ATTEMPT_REPAIR)
+        self.search_stopper = cfg.get('search_stopper', EvolutionConfig.SEARCH_STOPPER)
 
 
 class PlotConfig:

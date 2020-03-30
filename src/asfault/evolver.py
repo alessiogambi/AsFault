@@ -85,6 +85,23 @@ class LengthEstimator:
         return len(path)
 
 
+class SearchStopper:
+    def stopping_condition_met(self, execution):
+        return False
+
+
+class NeverStopSearchStopper(SearchStopper):
+    def stopping_condition_met(self, execution):
+        """Stopping condition is NEVER me"""
+        return False
+
+
+class StopAtObeSearchStopper(SearchStopper):
+    def stopping_condition_met(self, execution):
+        """Stopping condition is met is there's at least one OBE in the test"""
+        return execution.oobs > 0
+
+
 class TestSuiteEvaluation:
     RESULT_TIMEOUT = 'timeout'
     RESULT_SUCCESS = 'success'
@@ -296,6 +313,7 @@ class TestSuiteGenerator:
                  evaluator=StructureEvaluator(),
                  selector=TournamentSelector(random.Random(), 3),
                  estimator=TurnAndLengthEstimator(),
+                 search_stopper=NeverStopSearchStopper(),
                  runner_factory=None,
                  sort_pop=True,
                  plotter=None,
@@ -304,6 +322,7 @@ class TestSuiteGenerator:
         self.evaluator = evaluator
         self.selector = selector
         self.estimator = estimator
+        self.search_stopper = search_stopper
         self.runner_factory = runner_factory
         self.sort_pop = sort_pop
         self.plotter = plotter
@@ -366,8 +385,12 @@ class TestSuiteGenerator:
     def run_suite(self):
         for test in self.population:
             if not test.execution:
+                # Execute the test
                 execution = self.run_test(test)
                 test.execution = execution
+                # Pass the result back to enable
+                yield execution
+
 
     def spawn_test(self, bounds, seed):
         network = generate_networks(bounds, [seed])[0]
@@ -624,6 +647,9 @@ class TestSuiteGenerator:
         l.info('Candidate test %s is considered new.', str(candidate))
         return True
 
+    def check_stopping_condition(self):
+        return False
+
     def evolve_suite(self, generations, time_limit=-1):
         # Start wall time clock to compute time limit
         self.start_wall_time_clock()
@@ -644,38 +670,57 @@ class TestSuiteGenerator:
         l.debug('Paused evolution clock at: %s', total_evol_time)
 
         l.debug('Running initial evaluation of test suite.')
-        l.debug('Using evaluator: %s', str(type(self.evaluator)))
-        self.run_suite()
-        evaluation = self.evaluator.evaluate_suite(self.population)
-        total_eval_time = evaluation.duration
-        l.debug('Paused evaluation clock at: %s', total_eval_time)
 
+        l.debug('Using evaluator: %s', str(type(self.evaluator)))
+
+        restart_search = False
+
+        # This executes ALL the tests in one shot
+        for execution in self.run_suite():
+            # Has the execution reached its final goal?
+            if self.search_stopper.stopping_condition_met(execution):
+                l.info("Search achieved its goal. Restart the search...")
+                restart_search = True
+                yield ('goal_achieved', (execution, self.population))
+                break
         # Also the first run counts
         if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-            l.info("Enforcing time limit", time_limit,"after initial generation")
+            l.info("Enforcing time limit", time_limit, "after initial generation")
             generations = 0
+
+        # if not restart_search:
+        if True:
+            # Compute fitness function of the individuals. Not really necessary
+            evaluation = self.evaluator.evaluate_suite(self.population)
+            total_eval_time = evaluation.duration
+            l.debug('Paused evaluation clock at: %s', total_eval_time)
 
         l.debug('Entering main evolution loop.')
         for _ in range(generations):
-            #RoadTest.get_suite_seg_distribution(self.population, 2)
-            yield ('evaluated', (self.population, evaluation, total_evol_time, total_eval_time))
-            l.info('Test evolution step: %s', self.step)
+
             l.debug('Starting evolution clock.')
             self.beg_evol_clock()
-            l.debug('Sorting population by score.')
-            self.population = sorted(self.population, key=lambda x: x.score)
-            if len(self.population) > self.max_pop:
-                self.population = self.population[len(self.population) - self.max_pop:]
-                #l.debug('Randomly shuffling population.')
-                #self.rng.shuffle(self.population)
-            #evaluation = self.evaluator.evaluate_suite(self.population)
-            yield ('looped', self.population)
 
-            if self.random_exp:
+            # EVOLUTION OR RESTART THOSE GENERETE THE NEXT GEN
+            if self.random_exp or restart_search:
+                if restart_search:
+                    l.info("Restarting the search")
+                    restart_search = False
+
                 for state in self.generate_tests(self.max_pop):
                     if state[0] == 'finish_generation':
                         nextgen = state[1]
             else:
+                # RoadTest.get_suite_seg_distribution(self.population, 2)
+                yield ('evaluated', (self.population, evaluation, total_evol_time, total_eval_time))
+
+                l.info('Test evolution step: %s', self.step)
+                l.debug('Sorting population by score.')
+                self.population = sorted(self.population, key=lambda x: x.score)
+                if len(self.population) > self.max_pop:
+                    self.population = self.population[len(self.population) - self.max_pop:]
+                yield ('looped', self.population)
+
                 # ELITISM: NextGen always contains the BEST individual from the previous population? But best is the
                 # last one?
                 nextgen = [self.population[-1]]

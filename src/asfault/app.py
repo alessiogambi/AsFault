@@ -45,7 +45,7 @@ def setup_logging(log_file):
     file_handler = l.FileHandler(log_file, 'a', 'utf-8')
     term_handler = l.StreamHandler()
     l.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
-                  level=l.DEBUG, handlers=[term_handler, file_handler])
+                  level=l.INFO, handlers=[term_handler, file_handler])
     sys.excepthook = log_exception
     l.info('Started the logging framework writing to file: %s', log_file)
 
