@@ -905,9 +905,20 @@ class NetworkLayout:
             node.dead = True
 
     def build_qtree(self):
-        bounds_prep = prep(self.bounds)
+        # In some cases, AsFault generates roads that go over the map boundaries and then come back. All the states
+        #   outside the map are considered OBE. This is wrong and we try to fix it by defining a large buffer around
+        #   the map
+        from shapely.geometry import box
+        from numpy import min, max
+
+        buffer_size = 500 # TODO Not sure about the implication of this number...
+        minimum = min(self.bounds.exterior.xy) - buffer_size
+        maximum = max(self.bounds.exterior.xy) + buffer_size
+        enlarged_bounds = box(minimum, minimum, maximum, maximum)
+
+        bounds_prep = prep(enlarged_bounds)
         bbox = []
-        for val in self.bounds.bounds:
+        for val in enlarged_bounds.bounds:
             bbox.append(val * 2)
         #ret = Index(bbox=bbox, maxdepth=100000)
         ret = Index(bbox=bbox)
