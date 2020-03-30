@@ -1483,7 +1483,7 @@ class NetworkLayout:
         return True
 
     def is_consistent(self):
-        l.info('Starting consistency check.')
+        l.debug('Starting consistency check.')
         self.update_abs()
 
         l.debug('Checking for self-intersecting branches.')
