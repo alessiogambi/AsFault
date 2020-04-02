@@ -130,6 +130,15 @@ def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory,
                     out_file = os.path.join(plots_dir, out_file)
                     save_plot(out_file, dpi=c.pt.dpi_intermediate)
 
+        if step == 'time_limit_reached':
+            l.warning("Enforcing the time limit. Stopping the search")
+            population = data
+            # Dump whatever tests were generated and possibly executed so far
+            for test in population:
+                if test.test_id not in exported_tests_exec and test.execution:
+                    export_test_exec(plots_dir, execs_dir, test, render)
+                    exported_tests_exec.add(test.test_id)
+
         if step == 'goal_achieved':
             l.warning("GOAL ACHIEVED !!!")
             execution, population = data
@@ -138,6 +147,8 @@ def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory,
                 if test.test_id not in exported_tests_exec and test.execution:
                     export_test_exec(plots_dir, execs_dir, test, render)
                     exported_tests_exec.add(test.test_id)
+            # Reset the generation counter
+            generation = 0
 
         if step == 'finish_generation' or step == 'looped':
             # Dump the population to log file

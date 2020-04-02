@@ -699,18 +699,26 @@ class TestSuiteGenerator:
 
         restart_search = False
 
-        # This executes ALL the tests in one shot
+        ### UGLY: THIS SHOULD BE REFACTORED TO FIT IN A METHOD OR SOMETHING
+        # Instead of executing everything AND then check conditions run_suite yields the partial result and we decide
+        # what to do next.
         for execution in self.run_suite():
+
             # Has the execution reached its final goal?
             if self.search_stopper.stopping_condition_met(execution):
                 l.info("Search achieved its goal. Restart the search...")
                 restart_search = True
                 yield ('goal_achieved', (execution, self.population))
                 break
-        # Also the first run counts
-        if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-            l.info("Enforcing time limit", time_limit, "after initial generation")
-            generations = 0
+
+            # Is the time limit reached?
+            if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+                l.info("Enforcing time limit %d after initial generation", time_limit)
+                # Notify the "caller" about ending the generation.
+                yield ('time_limit_reached', (self.population))
+                # Not sure if this is the correct way, but we need to stop the execution
+                return
+
 
         # if not restart_search:
         if True:
@@ -863,11 +871,13 @@ class TestSuiteGenerator:
                     yield ('goal_achieved', (execution, self.population))
                     break
 
-            # If the time_limit is not -1 we need to enforce it
-            if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-                l.info("Enforcing time limit", time_limit, ". Exit the evolution loop !")
-                evaluation.result = TestSuiteEvaluation.RESULT_TIMEOUT
-                break
+                # Is the time limit reached?
+                if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+                    l.info("Enforcing time limit %d after initial generation", time_limit)
+                    # Notify the "caller" about ending the generation.
+                    yield ('time_limit_reached', (self.population))
+                    # Not sure if this is the correct way, but we need to stop the execution
+                    return
 
             # if not restart_search:
             if True:
