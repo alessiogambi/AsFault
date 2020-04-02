@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# Scripts
+scripts/
+
+# Test Subjects
+src/deepdrive/
+
 # Distribution / packaging
 .Python
 env/
