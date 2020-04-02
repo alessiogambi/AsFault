@@ -198,6 +198,12 @@ class RoadTest:
     def to_dict(test):
         ret = dict()
         ret['test_id'] = test.test_id
+        # Optional
+        if test.evo_step:
+            ret['evo_step'] = test.evo_step
+        if test.generation:
+            ret['generation'] = test.generation
+
         ret['network'] = NetworkLayout.to_dict(test.network)
         if test.start:
             ret['start'] = [test.start.x, test.start.y]
@@ -224,6 +230,11 @@ class RoadTest:
             goal = Point(dict['goal'][0], dict['goal'][1])
 
         test = RoadTest(test_id, network, start, goal)
+
+        if 'evo_step' in dict:
+            test.evo_step = dict['evo_step']
+        if 'generation' in dict:
+            test.generation = dict['generation']
 
         if 'path' in dict:
             path_nodes = dict['path']
@@ -287,6 +298,9 @@ class RoadTest:
 
         self.path = None
         self.path_line = None
+
+        self.evo_step = None
+        self.generation = None
 
     def __hash__(self):
         return hash(self.test_id)

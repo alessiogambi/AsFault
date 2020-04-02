@@ -89,10 +89,29 @@ def get_worst_test(suite):
     return min_test
 
 
-def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=True, show=False):
+def dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render):
+    execs_dir = c.rg.get_execs_path()
     plots_dir = c.rg.get_plots_path()
     tests_dir = c.rg.get_tests_path()
-    execs_dir = c.rg.get_execs_path()
+
+    # Dump whatever tests were generated and possibly executed so far
+    for test in population:
+        # Include info about their generation
+        test.evo_step = evo_step
+        test.generation = generation
+
+        if test not in exported_tests_gen:
+            export_test_gen(plots_dir, tests_dir, test, render)
+            exported_tests_gen.add(test)
+
+        if test.test_id not in exported_tests_exec and test.execution:
+            export_test_exec(plots_dir, execs_dir, test, render)
+            exported_tests_exec.add(test.test_id)
+
+
+
+def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=True, show=False):
+    plots_dir = c.rg.get_plots_path()
 
     exported_tests_gen = set()
     exported_tests_exec = set()
@@ -133,50 +152,34 @@ def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory,
         if step == 'time_limit_reached':
             l.warning("Enforcing the time limit. Stopping the search")
             population = data
-            # Dump whatever tests were generated and possibly executed so far
-            for test in population:
-                if test.test_id not in exported_tests_exec and test.execution:
-                    export_test_exec(plots_dir, execs_dir, test, render)
-                    exported_tests_exec.add(test.test_id)
+            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
+
 
         if step == 'goal_achieved':
             l.warning("GOAL ACHIEVED !!!")
             execution, population = data
-            # Dump whatever tests were generated and possibly executed so far
-            for test in population:
-                if test.test_id not in exported_tests_exec and test.execution:
-                    export_test_exec(plots_dir, execs_dir, test, render)
-                    exported_tests_exec.add(test.test_id)
+            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
+
             # Reset the generation counter
             generation = 0
 
         if step == 'finish_generation' or step == 'looped':
             # Dump the population to log file
             l.warning("GENERATION %s: %s", "{:03d}".format(generation), ", ".join([str(test.test_id) for test in data]))
-
-            for test in data:
-                if test not in exported_tests_gen:
-                    export_test_gen(plots_dir, tests_dir, test, render)
-                    exported_tests_gen.add(test)
+            population = data
+            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
 
         if step == 'finish_evolution':
-            final_path = c.rg.get_final_path()
-
-            # Dump the population to log file
             l.warning("FINAL TEST SUITE: %s", ", ".join([str(test.test_id) for test in data]))
-
-            for test in data:
-                export_test_exec(final_path, final_path, test, render)
+            final_path = c.rg.get_final_path()
+            population = data
+            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
 
         if step == 'evaluated':
-            generation += 1
 
             population, evaluation, total_evol, total_eval = data
 
-            for test in population:
-                if test.test_id not in exported_tests_exec:
-                    export_test_exec(plots_dir, execs_dir, test, render)
-                    exported_tests_exec.add(test.test_id)
+            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
 
             fitness = evaluation.score
             oob = evaluation.oob
@@ -188,6 +191,9 @@ def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory,
             evo.extend([generation, fitness, oob, timeouts,
                         diversity, min_test, max_test])
             evo.extend([total_evol, evaluation.total_coverage])
+
+            # This should be incremented after the execution not before...
+            generation += 1
 
             yield evo
 

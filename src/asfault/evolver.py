@@ -673,6 +673,7 @@ class TestSuiteGenerator:
     def check_stopping_condition(self):
         return False
 
+    # "Interacting evolution"
     def evolve_suite(self, generations, time_limit=-1):
         # Start wall time clock to compute time limit
         self.start_wall_time_clock()
