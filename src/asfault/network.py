@@ -1204,8 +1204,14 @@ class NetworkLayout:
             # Patch to enable the use of Shapely 1.7.0 which is the default for Python 3.7
             req_version = (3, 6, 6)
             cur_version = sys.version_info
+
+            if intersect.is_empty:
+                l.debug("Empty intersection for node spine %s", node)
+                continue
+
+
             if cur_version >= req_version:
-                l.error("\n\n Newer Python VERSION detected", cur_version)
+                l.debug("WARNING: Newer Python VERSION detected %s", cur_version)
 
                 if intersect.type == 'Point':
                     ret.add(node)
