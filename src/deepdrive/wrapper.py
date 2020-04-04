@@ -60,8 +60,6 @@ def main(MAX_SPEED):
     vehicle = Vehicle('egovehicle')
 
     # Set up sensors
-
-    # Set up sensors
     resolution = (280, 210)
     # Original Settings
     #pos = (-0.5, 1.8, 0.8)  # Left/Right, Front/Back, Above/Below

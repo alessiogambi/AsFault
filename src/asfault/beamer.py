@@ -485,7 +485,18 @@ def generate_test_prefab(test):
     else:
         test_dict['goal'] = {'x': 0, 'y': 0, 'z': 0.01}
 
-    prefab = TEMPLATE_ENV.get_template(PREFAB_FILE).render(streets=streets,
+    if c.ex.custom_beamng_template:
+        l.warning("USING CUSTOM PREFAB TEMPLATE %s", c.ex.custom_beamng_template)
+        prefab = TEMPLATE_ENV.get_template(c.ex.custom_beamng_template).render(streets=streets,
+                                                           dividers=dividers,
+                                                           l_boundaries=l_boundaries,
+                                                           r_boundaries=r_boundaries,
+                                                           waypoints=waypoints,
+                                                           obstacles=obstacles,
+                                                           test=test_dict)
+
+    else:
+        prefab = TEMPLATE_ENV.get_template(PREFAB_FILE).render(streets=streets,
                                                            dividers=dividers,
                                                            l_boundaries=l_boundaries,
                                                            r_boundaries=r_boundaries,

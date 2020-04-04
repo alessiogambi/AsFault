@@ -143,6 +143,7 @@ class EvolutionConfig:
 
         ret['attempt_repair'] = EvolutionConfig.ATTEMPT_REPAIR
         ret['search_stopper'] = EvolutionConfig.SEARCH_STOPPER
+
         return ret
 
     def __init__(self, path):
@@ -349,6 +350,9 @@ class ExecutionConfig:
     DONT_STOP_AT_OBE = False
     OBSERVATION_INTERVAL = 10
 
+    CUSTOM_BEAMNG_TEMPLATE = None
+
+
     @staticmethod
     def get_default():
         ret = dict()
@@ -374,6 +378,8 @@ class ExecutionConfig:
 
         ret['dont_stop_at_obe'] = ExecutionConfig.DONT_STOP_AT_OBE
         ret['observation_interval'] = ExecutionConfig.OBSERVATION_INTERVAL
+
+        ret['custom_beamng_template'] = ExecutionConfig.CUSTOM_BEAMNG_TEMPLATE
 
         return ret
 
@@ -402,6 +408,8 @@ class ExecutionConfig:
 
         self.dont_stop_at_obe = cfg.get('dont_stop_at_obe', ExecutionConfig.DONT_STOP_AT_OBE)
         self.observation_interval = cfg.get('observation_interval', ExecutionConfig.OBSERVATION_INTERVAL)
+
+        self.custom_beamng_template = cfg.get('custom_beamng_template', ExecutionConfig.CUSTOM_BEAMNG_TEMPLATE)
 
     def get_level_dir(self):
         return os.path.join(self.beamng_dir, self.level_dir)
