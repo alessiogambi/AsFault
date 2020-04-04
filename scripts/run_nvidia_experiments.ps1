@@ -22,11 +22,11 @@ Foreach-Object {
         ls $experiment .*-env -Directory |
         Foreach-Object {
             # This should be exctracted from the execution.json file !s
-            $maxSpeed=25
+            $environmentDir = $_.FullName
+            $json=(Get-Content $environmentDir\cfg\execution.json | ConvertFrom-Json)
+            $maxSpeed=$json.speed_limit
             $wrapperScript="$wrapperScript --max-speed $maxSpeed"
 
-
-            $environmentDir = $_.FullName 
             "Executing experiment $experiment with environment $environmentDir"
             # Execute the experiment from the right folder
             cd C:\Users\Alessio\AsFault\
