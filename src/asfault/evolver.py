@@ -717,8 +717,8 @@ class TestSuiteGenerator:
                 l.info("Enforcing time limit %d after initial generation", time_limit)
                 # Notify the "caller" about ending the generation.
                 yield ('time_limit_reached', (self.population))
-                # Not sure if this is the correct way, but we need to stop the execution
-                return
+                # We need to evaluate the tests generate so far
+                break
 
 
         # if not restart_search:
@@ -727,6 +727,9 @@ class TestSuiteGenerator:
             evaluation = self.evaluator.evaluate_suite(self.population)
             total_eval_time = evaluation.duration
             l.debug('Paused evaluation clock at: %s', total_eval_time)
+
+            if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+                return
 
         l.debug('Entering main evolution loop.')
         for _ in range(generations):
@@ -877,8 +880,8 @@ class TestSuiteGenerator:
                     l.info("Enforcing time limit %d after initial generation", time_limit)
                     # Notify the "caller" about ending the generation.
                     yield ('time_limit_reached', (self.population))
-                    # Not sure if this is the correct way, but we need to stop the execution
-                    return
+                    # We need to evaluate whatever tests we did created
+                    break
 
             # if not restart_search:
             if True:
@@ -888,6 +891,9 @@ class TestSuiteGenerator:
                 evaluation = self.evaluator.evaluate_suite(self.population)
                 total_eval_time += evaluation.duration
 
+                if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+                    return
+                
                 # AT THIS POINT WE CAN COMPARE OLD AND NEW TO DECIDE WHICH INDIVIDUALS TO KEEP AROUND - This will be
                 # overwritten by restart_search
                 if self.max_pop == 1:
