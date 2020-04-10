@@ -543,7 +543,7 @@ class DeapTestGeneration:
             for mut_idx in range(len(offspring)):
                 mutable = offspring[mut_idx]
 
-                if random.random < c.ev.mut_chance:
+                if random.random() < c.ev.mut_chance:
                     l.debug("Mutating ({}){} ", mut_idx, mutable .test_id)
 
                     mutated, aux = self.toolbox.mutate(mutable)

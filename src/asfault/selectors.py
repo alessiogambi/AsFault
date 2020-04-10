@@ -1,4 +1,5 @@
 import random
+import logging as l
 
 # TODO Consider to replace this with DEAP implementation
 class MateSelector:
@@ -21,6 +22,7 @@ class TournamentSelector(MateSelector):
     def __init__(self, tourney_size):
         self.tourney_size = tourney_size
 
+    @DeprecationWarning
     def select(self, suite, ignore=set()):
         suite = [test for test in suite if test not in ignore]
         best = None

@@ -409,13 +409,14 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
 
     # Selection - We use the original selection mechanisms for the moment
     if c.ev.selector == 'random':
-        selector = RandomMateSelector()
+        # selector = RandomMateSelector()
+        toolbox.register("select", tools.selRandom)
     elif c.ev.selector == 'tournament':
-        selector = TournamentSelector(tourney_size=2)
+        # selector = TournamentSelector(tourney_size=2)
+        toolbox.register("select", tools.selTournament, tournsize=2)
     else:
         raise Exception("Missing Selector Function")
 
-    toolbox.register("select", selector.select)
 
     # The following functions compute score metrics on the path/test in order to filter them out. This is an advanced
     # feature that we will not use at the moment
@@ -545,15 +546,16 @@ def experiment(seed, budget, factory, time_limit=-1, render=False, show=False, )
     else:
         evaluator = LaneDistanceEvaluator()
 
+    selector = RandomMateSelector(rng)
     # Selection
-    if c.ev.selector == 'random':
-        selector = RandomMateSelector(rng)
-        sort_pop = False
-    elif c.ev.selector == 'tournament':
-        selector = TournamentSelector(rng, 2)
-    else:
-        print('Illegal value for selector: {}'.format(c.ex.selector))
-        sys.exit(-1)
+    # if c.ev.selector == 'random':
+    #     selector = RandomMateSelector(rng)
+    #     sort_pop = False
+    # elif c.ev.selector == 'tournament':
+    #     selector = TournamentSelector(rng, 2)
+    # else:
+    #     print('Illegal value for selector: {}'.format(c.ex.selector))
+    #     sys.exit(-1)
 
     if c.ev.estimator == 'random':
         estimator = RandomPathEstimator(rng)
