@@ -567,7 +567,7 @@ class DeapTestGeneration:
                 self.beg_evaluation_clock()
                 l.debug("Evaluating execution of test %s", executed_test.test_id)
                 fitness_values, reason = self.toolbox.evaluate(executed_test, self.population)
-                executed_test.fitness.values = fitness_values
+                executed_test.fitness.values = (fitness_values, )
                 l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
                 total_evaluation_time += self.end_evaluation_clock()
 
@@ -589,7 +589,7 @@ class DeapTestGeneration:
                 self.beg_evaluation_clock()
                 l.debug("Evaluating execution of test %s", executed_test.test_id)
                 fitness_values, reason = self.toolbox.evaluate(executed_test, self.population)
-                executed_test.fitness.values = fitness_values
+                executed_test.fitness.values = (fitness_values, )
                 l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
                 total_evaluation_time += self.end_evaluation_clock()
 
