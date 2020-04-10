@@ -94,74 +94,43 @@ def replay(env, flush_output):
         shutil.rmtree(output_dir)
         config.rg.ensure_directories()
 
-
-
 @evolve.command()
 @click.option('--seed', default=milliseconds())
-@click.option('--generations', default=100)
-@click.option('--render', is_flag=True)
-@click.option('--show', is_flag=True)
+@click.option('--generations', default=10)
+@click.option('--render', is_flag=False)
+@click.option('--show', is_flag=False)
 @click.option('--time-limit', default=-1)
 def bng(seed, generations, render, show, time_limit):
     l.info('Starting BeamNG.AI with seed: {}'.format(seed))
 
-    if time_limit > 0:
-        l.info('Time limit will be enforced at: {}'.format(time_limit))
-    else:
-        l.info('No time limit enforced')
-
-    # TODO Force the use of BeamNG.AI
+    # Ensure the right configurations are there
+    # Force the use of BeamNG.AI
     config.ex.ai_controlled = 'true'
 
-    experiments.experiment(seed, generations, render=render, show=show, time_limit=time_limit)
+    factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show)
+    experiments.experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
 
 
 @evolve.command()
 @click.option('--seed', default=milliseconds())
 @click.option('--generations', default=10)
-@click.option('--render', is_flag=True)
-# @click.option('--show', is_flag=True)
-@click.option('--uniq', is_flag=True)
-# Limit the test execution to a given execution time
+@click.option('--render', is_flag=False)
+@click.option('--show', is_flag=False)
 @click.option('--time-limit', default=-1)
 @click.argument('ctrl')
-def ext(seed, generations, render, uniq, time_limit, ctrl):
-    l.info('Starting external evolve with seed: {}'.format(seed))
+def ext(seed, generations, render, show, time_limit, ctrl):
+    l.info('Starting external AI {} with seed: {}'.format(ctrl, seed))
 
-    if time_limit > 0:
-        l.info('Time limit will be enforced at: {}'.format(time_limit))
-    else:
-        l.info('No time limit enforced')
-
-    l.info('AI Controller call given is: %s', ctrl)
-
-    # plots_dir = config.rg.get_plots_path()
-    # tests_dir = config.rg.get_tests_path()
-
-    level_dir = config.ex.get_level_dir()
-
-    # config.ev.join_probability = 1.1
-    # config.ev.lane_width = 4.3
-    # if uniq:
-    #     config.ev.evaluator = 'uniqlanedist'
-    # else:
-    #     config.ev.evaluator = 'lanedist'
-    # config.ev.try_all_ops = False
+    # Ensure the right confiruations are there
+    # Do not use super-fast-time
     config.ex.max_speed = 'false'
+    # Do not use BeamNG.AI
     config.ex.ai_controlled = 'false'
-    config.ex.direction_agnostic_boundary = True
+    # TODO No idea what this
+    # config.ex.direction_agnostic_boundary = True
 
-    rng = random.Random()
-    rng.seed(seed)
-
-    factory = gen_beamng_runner_factory(level_dir, config.ex.host, config.ex.port, False, ctrl=ctrl)
-
-    # evaluator = LaneDistanceEvaluator()
-    # selector = TournamentSelector(rng, 2)
-    # estimator = TurnAndLengthEstimator()
-    # experiments.experiment_out(rng, evaluator, selector, estimator, factory,
-    #                            True, generations, render=render)
-    experiments.experiment(seed, generations, time_limit=time_limit, render=render, show=False, factory=factory)
+    factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ctrl)
+    experiments.experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
 
 
 @evolve.command()
@@ -247,7 +216,7 @@ def mock(seed, generations, show, render):
 @replay.command()
 @click.option('--ext', default=None)
 @click.option('--show', is_flag=False)
-@click.option('--output', default=os.path.curdir)
+@click.option('--output', default=None)
 @click.argument('test-file', nargs=1)
 def run_test(ext, show, output, test_file):
     _run_test(ext,  show, output, test_file)
@@ -259,13 +228,28 @@ def _run_test(ext, show, output, test_file):
     with open(test_file, 'r') as infile:
         test_dict = json.loads(infile.read())
     test = RoadTest.from_dict(test_dict)
+
+    # We need to strip out any previous execution from the test to ensure we will get the expected one or nothing
+    if test.execution:
+        l.info("STRIP OFF PREVIOUS EXECUTION")
+        del test.execution
+
     out_dir = config.ex.get_level_dir()
 
     host = config.ex.host
     port = config.ex.port
 
     runner = TestRunner(test, out_dir, host, port, plot=show, ctrl=ext)
-    output_file = os.path.abspath(os.path.join(output, ''.join(['result', '-', os.path.basename(test_file)])))
+
+    if output is None:
+        # Use the default folder
+        output_file = os.path.abspath(os.path.join(config.rg.get_replays_path(), os.path.basename(test_file)))
+    else:
+        # Create output folder if missing
+        if not os.path.exists(output):
+            os.makedirs(output, exist_ok=True)
+        # Configure the output file to be the name of the test. This containts both the test and the execution.
+        output_file = os.path.abspath(os.path.join(output, os.path.basename(test_file)))
 
     l.info('Starting BeamNG.research to run test: %s', test_file)
     l.info('Output result to: %s', output_file)
@@ -277,16 +261,16 @@ def _run_test(ext, show, output, test_file):
         config.ex.ai_controlled = 'true'
 
     # This starts the external client but uses BeamNG AI nevertheless
-    execution = runner.run()
+    test.execution = runner.run()
+
+    # TODO: RIIA This should be always executed...  !
     runner.close()
 
-    # Create output folder if missing
-    if not os.path.exists(output):
-        os.makedirs(output, exist_ok=True)
+    test_dict = RoadTest.to_dict(test)
+    with open(output_file, 'w', encoding='utf-8') as out:
+        l.info('Writing Results to %s', output_file)
 
-    # Dump to JSON file
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(TestExecution.to_dict(execution), f, ensure_ascii=False, indent=4)
+        out.write(json.dumps(test_dict, sort_keys=True, ensure_ascii=False, indent=4))
 
 @replay.command()
 @click.option('--ext', default=None)
@@ -296,6 +280,20 @@ def _run_test(ext, show, output, test_file):
 def run_tests(ext, show, output, test_files):
     for test_file in test_files:
         _run_test(ext, show, output, test_file)
+
+
+@replay.command()
+@click.option('--ext', default=None)
+@click.option('--show', is_flag=False)
+@click.option('--output', default=None)
+def run_tests_from_env(ext, show, output):
+    # Automatically take tests from the exec folder of the environment if it there
+    if Path.is_dir(Path(c.rg.get_execs_path())):
+        for test_file in _get_test_files_from_folder(c.rg.get_execs_path()):
+            # Since tests contains previous executions, we need to string execution off that
+            _run_test(ext, show, output, test_file)
+    else:
+        l.error("This command requires an existing folder as input")
 
 
 @replay.command()
