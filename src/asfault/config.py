@@ -9,6 +9,7 @@ PATH_PLOTS = 'plots'
 PATH_GRAPHS = 'graphs'
 PATH_TESTS = 'tests'
 PATH_EXECS = 'execs'
+PATH_REPLAYS = 'replay'
 FILE_EVOLUTION = 'evolution.json'
 FILE_EXECUTION = 'execution.json'
 FILE_PLOT = 'plot.json'
@@ -82,6 +83,10 @@ class AsFaultEnv:
         execs_path = self.get_output_path()
         return os.path.join(execs_path, PATH_EXECS)
 
+    def get_replays_path(self):
+        replays_path = self.get_output_path()
+        return os.path.join(replays_path, PATH_REPLAYS)
+
     def ensure_directories(self):
         paths = [
             self.env_dir,
@@ -90,6 +95,7 @@ class AsFaultEnv:
             self.get_plots_path(),
             self.get_tests_path(),
             self.get_execs_path(),
+            self.get_replays_path(),
             self.get_graphs_path()
         ]
         for path in paths:
@@ -108,9 +114,9 @@ class EvolutionConfig:
     POP_SIZE = 25
     MUT_CHANCE = 0.05
     INTRO_CHANCE = 0.15
-    EVALUATOR = 'lanedist'
-    SELECTOR = 'tournament'
-    ESTIMATOR = 'length'
+    EVALUATOR = None # 'lanedist'
+    SELECTOR =  None # 'tournament'
+    ESTIMATOR = None # 'length'
     JOIN_PROBABILITY = 0.5
     PARTIAL_MERGE_M_COUNT = 1
     PARTIAL_MERGE_D_COUNT = 1
@@ -118,6 +124,8 @@ class EvolutionConfig:
 
     ATTEMPT_REPAIR = False
     SEARCH_STOPPER = None
+    RESTART_SEARCH = True
+    POPULATION_MERGER = None
 
     @staticmethod
     def get_default():
@@ -143,6 +151,9 @@ class EvolutionConfig:
 
         ret['attempt_repair'] = EvolutionConfig.ATTEMPT_REPAIR
         ret['search_stopper'] = EvolutionConfig.SEARCH_STOPPER
+        ret['restart_search'] = EvolutionConfig.RESTART_SEARCH
+
+        ret['pop_merger'] = EvolutionConfig.POPULATION_MERGER
 
         return ret
 
@@ -170,6 +181,9 @@ class EvolutionConfig:
 
         self.attempt_repair = cfg.get('attempt_repair', EvolutionConfig.ATTEMPT_REPAIR)
         self.search_stopper = cfg.get('search_stopper', EvolutionConfig.SEARCH_STOPPER)
+        self.restart_search = cfg.get('restart_search', EvolutionConfig.RESTART_SEARCH)
+
+        self.pop_merger = cfg.get('pop_merger', EvolutionConfig.POPULATION_MERGER)
 
 
 class PlotConfig:

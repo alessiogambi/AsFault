@@ -99,7 +99,7 @@ def replay(env, flush_output):
 @click.option('--generations', default=10)
 @click.option('--render', is_flag=False)
 @click.option('--show', is_flag=False)
-@click.option('--time-limit', default=-1)
+@click.option('--time-limit', default=math.inf)
 def bng(seed, generations, render, show, time_limit):
     l.info('Starting BeamNG.AI with seed: {}'.format(seed))
 
@@ -108,7 +108,7 @@ def bng(seed, generations, render, show, time_limit):
     config.ex.ai_controlled = 'true'
 
     factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show)
-    experiments.experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
+    experiments.deap_experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
 
 
 @evolve.command()
@@ -116,7 +116,7 @@ def bng(seed, generations, render, show, time_limit):
 @click.option('--generations', default=10)
 @click.option('--render', is_flag=False)
 @click.option('--show', is_flag=False)
-@click.option('--time-limit', default=-1)
+@click.option('--time-limit', default=math.inf)
 @click.argument('ctrl')
 def ext(seed, generations, render, show, time_limit, ctrl):
     l.info('Starting external AI {} with seed: {}'.format(ctrl, seed))
@@ -130,87 +130,88 @@ def ext(seed, generations, render, show, time_limit, ctrl):
     # config.ex.direction_agnostic_boundary = True
 
     factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ctrl)
-    experiments.experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
+    experiments.deap_experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
 
 
 @evolve.command()
 @click.option('--seed', default=milliseconds())
 @click.option('--generations', default=10)
 @click.option('--show', default=False)
-@click.option('--render', is_flag=True)
-def mock(seed, generations, show, render):
-    plots_dir = config.rg.get_plots_path()
-    tests_dir = config.rg.get_tests_path()
+@click.option('--render', is_flag=False)
+@click.option('--time-limit', default=math.inf)
+def mock(seed, generations, show, render, time_limit):
+    # plots_dir = config.rg.get_plots_path()
+    # tests_dir = config.rg.get_tests_path()
+    #
+    # if show or render:
+    #     plotter = EvolutionPlotter()
+    #     if show:
+    #         plotter.start()
+    # else:
+    #     plotter = None
+    # rng = random.Random()
+    # rng.seed(seed)
+    factory = gen_mock_runner_factory()
+    experiments.deap_experiment(seed, generations, factory, time_limit=time_limit, render=render, show=show, )
 
-    if show or render:
-        plotter = EvolutionPlotter()
-        if show:
-            plotter.start()
-    else:
-        plotter = None
-
-    rng = random.Random()
-    rng.seed(seed)
-
-    factory = gen_mock_runner_factory(rng)
-    evaluator = StructureEvaluator()
-    selector = TournamentSelector(rng, 2)
-    estimator = LengthEstimator()
-
-    gen = TestSuiteGenerator(rng, evaluator, selector, estimator, factory)
-
-    if c.ev.attempt_repair:
-        l.info("(Mock) REPAIR: Enabled")
-        gen.joiner = RepairJoin(rng, c.ev.bounds)
-    else:
-        l.info("(Mock) REPAIR: Disabled")
-
-    step = 0
-    for state in gen.evolve_suite(generations):
-        if plotter:
-            updated = plotter.update(state)
-            if updated:
-                if show:
-                    plotter.pause()
-                if render:
-                    out_file = '{:08}.png'.format(step)
-                    out_file = os.path.join(plots_dir, out_file)
-                    save_plot(out_file, dpi=c.pt.dpi_intermediate)
-                    step += 1
-
-    suite = gen.population
-
-    for test in suite:
-        test_file = os.path.join(tests_dir, '{0:08}.json'.format(test.test_id))
-        plot_file = os.path.join(plots_dir,
-                                 'final_{0:08}.png'.format(test.test_id))
-
-        plotter = StandaloneTestPlotter('Test: {}'.format(test.test_id),
-                                        test.network.bounds)
-        plotter.plot_test(test)
-        save_plot(plot_file, dpi=c.pt.dpi_final)
-
-        test_dict = RoadTest.to_dict(test)
-        with open(test_file, 'w') as out:
-            out.write(json.dumps(test_dict, sort_keys=True, indent=4))
-        clear_plot()
-
-    for test in suite:
-        continue
-        map_file = os.path.join(
-            plots_dir, 'map_{0:08}.png'.format(test.test_id))
-        generate_road_mask(test.network, map_file,
-                           buffer=4 * config.ev.lane_width)
-        noise_file = os.path.join(
-            plots_dir, 'noise_{0:08}.png'.format(test.test_id))
-        generate_noise_road_map(random.Random(), 2048,
-                                2048, 1024, 512, map_file, noise_file)
-
-    out_dir = config.rg.get_output_path()
-    out_file = os.path.join(out_dir, 'props.json')
-    props = {'seed': seed}
-    with open(out_file, 'w') as out:
-        out.write(json.dumps(props, sort_keys=True, indent=4))
+    # evaluator = StructureEvaluator()
+    # selector = TournamentSelector(rng, 2)
+    # estimator = LengthEstimator()
+    #
+    # gen = TestSuiteGenerator(rng, evaluator, selector, estimator, factory)
+    #
+    # if c.ev.attempt_repair:
+    #     l.info("(Mock) REPAIR: Enabled")
+    #     gen.joiner = RepairJoin(rng, c.ev.bounds)
+    # else:
+    #     l.info("(Mock) REPAIR: Disabled")
+    #
+    # step = 0
+    # for state in gen.evolve_suite(generations):
+    #     if plotter:
+    #         updated = plotter.update(state)
+    #         if updated:
+    #             if show:
+    #                 plotter.pause()
+    #             if render:
+    #                 out_file = '{:08}.png'.format(step)
+    #                 out_file = os.path.join(plots_dir, out_file)
+    #                 save_plot(out_file, dpi=c.pt.dpi_intermediate)
+    #                 step += 1
+    #
+    # suite = gen.population
+    #
+    # for test in suite:
+    #     test_file = os.path.join(tests_dir, '{0:08}.json'.format(test.test_id))
+    #     plot_file = os.path.join(plots_dir,
+    #                              'final_{0:08}.png'.format(test.test_id))
+    #
+    #     plotter = StandaloneTestPlotter('Test: {}'.format(test.test_id),
+    #                                     test.network.bounds)
+    #     plotter.plot_test(test)
+    #     save_plot(plot_file, dpi=c.pt.dpi_final)
+    #
+    #     test_dict = RoadTest.to_dict(test)
+    #     with open(test_file, 'w') as out:
+    #         out.write(json.dumps(test_dict, sort_keys=True, indent=4))
+    #     clear_plot()
+    #
+    # for test in suite:
+    #     continue
+    #     map_file = os.path.join(
+    #         plots_dir, 'map_{0:08}.png'.format(test.test_id))
+    #     generate_road_mask(test.network, map_file,
+    #                        buffer=4 * config.ev.lane_width)
+    #     noise_file = os.path.join(
+    #         plots_dir, 'noise_{0:08}.png'.format(test.test_id))
+    #     generate_noise_road_map(random.Random(), 2048,
+    #                             2048, 1024, 512, map_file, noise_file)
+    #
+    # out_dir = config.rg.get_output_path()
+    # out_file = os.path.join(out_dir, 'props.json')
+    # props = {'seed': seed}
+    # with open(out_file, 'w') as out:
+    #     out.write(json.dumps(props, sort_keys=True, indent=4))
 
 
 @replay.command()

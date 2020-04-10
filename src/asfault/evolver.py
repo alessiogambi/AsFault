@@ -63,46 +63,6 @@ def score_path_polyline(path_line):
 
     return sum
 
-
-class PathEstimator:
-    def score_path(self, polyline):
-        raise NotImplementedError()
-
-
-class RandomPathEstimator:
-    def __init__(self, rng):
-        self.rng = rng
-
-    def score_path(self, path, polyline):
-        return self.rng.uniform(0, 10)
-
-
-class TurnAndLengthEstimator:
-    def score_path(self, path, polyline):
-        return score_path_polyline(polyline)
-
-class LengthEstimator:
-    def score_path(self, path, polyline):
-        return len(path)
-
-
-class SearchStopper:
-    def stopping_condition_met(self, execution):
-        return False
-
-
-class NeverStopSearchStopper(SearchStopper):
-    def stopping_condition_met(self, execution):
-        """Stopping condition is NEVER me"""
-        return False
-
-
-class StopAtObeSearchStopper(SearchStopper):
-    def stopping_condition_met(self, execution):
-        """Stopping condition is met is there's at least one OBE in the test"""
-        return execution.oobs > 0
-
-
 class TestSuiteEvaluation:
     RESULT_TIMEOUT = 'timeout'
     RESULT_SUCCESS = 'success'
@@ -197,21 +157,22 @@ class BeamNGEvaluator(SuiteEvaluator):
 
 
 class MockRunner:
-    def __init__(self, rng, test):
-        self.rng = rng
+    def __init__(self, test):
         self.test = test
 
     def run(self):
         now = datetime.datetime.now()
-        return TestExecution(self.test, self.rng.random(), REASON_GOAL_REACHED, [], self.rng.randint(0, 5), now, now, minimum_distance=0, average_distance=0.5, maximum_distance=1.0)
+        return TestExecution(self.test, random.random(), REASON_GOAL_REACHED, [],
+                             random.randint(0, 5), now, now,
+                             minimum_distance=0, average_distance=0.5, maximum_distance=1.0)
 
     def close(self):
         pass
 
 
-def gen_mock_runner_factory(rng):
+def gen_mock_runner_factory():
     def factory(test):
-        runner = MockRunner(rng, test)
+        runner = MockRunner(test)
         return runner
     return factory
 
@@ -297,44 +258,372 @@ class RandomEvaluator(SuiteEvaluator):
         return self.rng.random(), test.execution.reason
 
 
-class MateSelector:
-    def select(self, suite, ignore=set()):
-        raise NotImplementedError()
+# TODO Not that it might be misleading to talk about test suites, when we indeed evolve test cases...
+class DeapTestGeneration:
+    def __init__(self):
+        pass
+
+    def __init__(self,
+                 toolbox,
+                 runner_factory=None,
+                 **evopts):
+        # DEAP framework
+        self.toolbox = toolbox
+        # Test runner factory
+        self.runner_factory = runner_factory
+
+        # TODO Not sure what's this...
+        self.evopts = evopts
+
+        #
+        size = c.ev.bounds
+        self.bounds = box(-size, -size, size, size)
+        self.max_pop = c.ev.pop_size
+
+        self.population = None
+
+        self.test_id = 1
+        self.step = 0
+
+        self.sg_idx = 0
+
+    def next_test_id(self):
+        ret = self.test_id
+        self.test_id += 1
+        return ret
+
+    def run_test(self, test):
+        while True:
+            runner = self.runner_factory(test)
+            try:
+                execution = runner.run()
+                return execution
+            except Exception as e:
+                l.error('Error running test %s', test)
+                l.exception(e)
+                sleep(30.0)
+            finally:
+                runner.close()
+
+    def run_suite(self):
+        for test in self.population:
+            if not test.execution:
+                # Execute the test
+                execution = self.run_test(test)
+                test.execution = execution
+                # Pass the result back
+                yield test
+
+    def spawn_test(self, bounds, seed):
+        network = generate_networks(bounds, [seed])[0]
+        test = self.test_from_network(network)
+        return test
+
+    def test_from_network(self, network):
+        start, goal, path = self.determine_start_goal_path(network)
+        l.debug('Got start, goal, and path for network.')
+        test = RoadTest(self.next_test_id(), network, start, goal)
+        if path:
+            l.debug('Setting path of new test: %s', test.test_id)
+            test.set_path(path)
+            l.debug('Set path of offspring.')
+        return test
 
 
-class RandomMateSelector(MateSelector):
-    def __init__(self, rng):
-        self.rng = rng
+    # # TODO sIntroduce random individuals
+    # def roll_introduction(self):
+    #     return self.rng.random() <= c.ev.intro_chance
 
-    def select(self, suite, ignore=set()):
-        options = [resident for resident in suite if resident not in ignore]
-        return self.rng.sample(options, 1)[0]
+    def determine_start_goal_path(self, network):
+        best_start, best_goal = None, None
+        best_path = None
+        best_score = -1
+
+        epsilon = 0.1
+        candidates = list(network.get_start_goal_candidates())
+        self.rng.shuffle(candidates)
+        candidate_idx = 0
+        sg_file = 'sg_{:08}.png'.format(self.sg_idx)
+        sg_file = os.path.join(c.rg.get_plots_path(), sg_file)
+        sg_json = 'sg_{:08}.json'.format(self.sg_idx)
+        sg_json = os.path.join(c.rg.get_plots_path(), sg_json)
+        # with open(sg_json, 'w') as out_file:
+        # out_file.write(json.dumps(NetworkLayout.to_dict(network), indent=4, sort_keys=True))
+        self.sg_idx += 1
+        # plot_network(sg_file, network)
+        if candidates:
+            for start, goal in candidates:
+                # l.info(sg_file)
+                l.info('Checking candidate: (%s, %s), %s/%s', start, goal, candidate_idx, len(candidates))
+                candidate_idx += 1
+                paths = network.all_paths(start, goal)
+                # paths = network.all_shortest_paths(start, goal)
+                start_coord, goal_coord = get_start_goal_coords(network, start, goal)
+                i = 0
+                done = 0.05
+                for path in paths:
+                    l.info('Path has length: %s', len(path))
+                    try:
+                        polyline = get_path_polyline(network, start_coord, goal_coord, path)
+                    except:
+                        break
+                    l.info('Got polyline.')
+                    score = self.estimator.score_path(path, polyline)
+                    l.info('Got score estimation: %s', score)
+                    if score > best_score:
+                        best_start = start
+                        best_goal = goal
+                        best_path = path
+                        best_score = score
+                    i += 1
+
+                    done = self.rng.random()
+                    if done < epsilon:
+                        break
+
+                    epsilon *= 1.25
+                if done < epsilon:
+                    break
+
+            best_start, best_goal = get_start_goal_coords(network, best_start,
+                                                          best_goal)
+
+            return best_start, best_goal, best_path
+
+        return None, None, None
+
+    def determine_path(self, test):
+        start_node = test.network.get_nodes_at(test.start)
+        goal_node = test.network.get_nodes_at(test.goal)
+        assert len(start_node) > 0
+        assert len(goal_node) > 0
+        start_node = start_node.pop()
+        goal_node = goal_node.pop()
+        return test.network.shortest_path(start_node, goal_node)
 
 
-class TournamentSelector(MateSelector):
-    def __init__(self, rng, tourney_size):
-        self.rng = rng
-        self.tourney_size = tourney_size
+    def beg_evol_clock(self):
+        self.beg_evol = datetime.datetime.now()
 
-    def select(self, suite, ignore=set()):
-        suite = [test for test in suite if test not in ignore]
-        best = None
-        for i in range(self.tourney_size):
-            if suite:
-                idx = self.rng.randint(0, len(suite) - 1)
-                resident = suite.pop(idx)
-                l.info('Resident: %s', str(resident))
-                assert resident.score
-                if not best or resident.score > best.score:
-                    best = resident
-        return best
+    def end_evol_clock(self):
+        assert self.beg_evol
+        ret = datetime.datetime.now() - self.beg_evol
+        self.beg_evol = None
+        return ret.seconds
 
+    def beg_evaluation_clock(self):
+        self.beg_evaluation = datetime.datetime.now()
+
+    def end_evaluation_clock(self):
+        assert self.beg_evaluation
+        ret = datetime.datetime.now() - self.beg_evaluation
+        self.beg_evaluation = None
+        return ret.seconds
+
+    def start_wall_time_clock(self):
+        self.wall_time = datetime.datetime.now()
+
+    def get_wall_time_clock(self):
+        assert self.wall_time
+        ret = datetime.datetime.now() - self.wall_time
+        return ret.seconds
+
+    def check_stopping_condition(self):
+        return False
+
+    def evolve_suite(self, generations, time_limit):
+        # TODO Check that 1+1EA is still possible
+        # TODO Check that RANDOM is still possible
+
+        total_evaluation_time = 0
+        total_evol_time = 0
+
+        # Start wall time clock to compute time limit
+        self.start_wall_time_clock()
+
+        # Initialise pop
+        l.debug('Starting evolution clock.')
+        self.beg_evol_clock()
+        l.debug('Initialising test suite population.')
+        self.population = self.toolbox.population(self.max_pop)
+
+        total_evol_time += self.end_evol_clock()
+        l.debug('Paused evolution clock at: %s', total_evol_time)
+
+        # Notify caller about progress
+        yield ('finish_generation', self.population)
+
+        # Evaluate the initial population
+        l.debug('Running initial evaluation of test suite.')
+
+        # Execute the tests one by one and evaluate their fitness
+        for idx, executed_test in enumerate(self.run_suite()):
+
+            self.beg_evaluation_clock()
+            l.debug("Evaluating execution of test %s", executed_test.test_id)
+            fitness_values, reason = self.toolbox.evaluate(executed_test, self.population)
+            executed_test.fitness.values = (fitness_values,)
+            l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
+            total_evaluation_time += self.end_evaluation_clock()
+
+            # Has the execution reached its final goal?
+            if self.toolbox.stop_search(executed_test):
+                l.info("The search achieved its goal. Stop.")
+                # If we return at this point, the loop will not be executed
+                yield ('goal_achieved', (executed_test, self.population))
+
+            if self.get_wall_time_clock() >= time_limit:
+                l.info("Enforcing time limit %d", time_limit)
+                # If we return at this point, the loop will not be executed
+                yield ('time_limit_reached', (self.population))
+
+        l.debug('Entering main evolution loop: remaining generations {}.', generations)
+        for _ in range(generations):
+            # TODO How to implement random search?
+
+            # TODO Notify the caller about all the tests being evaluated to store info ?
+            # yield ('evaluated', (self.population, evaluation, total_evol_time, total_eval_time))
+
+            l.debug('Starting evolution clock.')
+            self.beg_evol_clock()
+
+            l.info('Test evolution step: %s', self.step)
+
+            l.debug('Sorting population by score (Higher score comes first')
+            self.population = sorted(self.population, key=lambda ind: sum(ind.fitness.values), reverse=True)
+            if len(self.population) > self.max_pop:
+                l.error("Current population has more elements than expected {} instead of {}. Select best individuals",
+                        len(self.population), self.max_pop)
+                self.population = self.population[0:self.max_pop]
+            # TODO No idea why I need to notify about this ...
+            # yield ('looped', self.population)
+
+            best_individual = self.population[0]
+            l.debug("Promote best individual {}", best_individual.test_id)
+            next_generation = [best_individual]
+
+            # SELECT INDIVIDUALS
+            l.debug('Select individuals.')
+            offspring = self.toolbox.select(self.population, self.max_pop)
+
+            l.debug('Mate individuals.')
+            # Since our search operators generates new individuals, we cannot clone the offspring to mate and and
+            # mutate them, instead we keep track of their index and replace the objects as we move on
+            for mom_idx, dad_idx in zip(range(len(offspring))[::2], range(len(offspring))[1::2]):
+
+                mom = offspring[mom_idx]
+                dad = offspring[dad_idx]
+
+                l.debug("Selected ({}){} and ({}){} ", mom_idx, mom.test_id, dad_idx, dad.test_id)
+
+                if mom == dad:
+                    l.debug("Same individual. Move on")
+                    continue
+
+                # TODO This should be replaces with CXP
+                if random.random < c.crossover_probability:
+                    l.debug("Mating ({}){} and ({}){} ", mom_idx, mom.test_id, dad_idx, dad.test_id)
+                    # This returns the individuals resulting from the cross-over and leaves the parents intact so
+                    # they can mate again without problems
+
+                    children, aux = self.toolbox.mate(mom, dad)
+
+                    if children:
+                        l.debug('Cross-over produced %s children', len(children))
+
+                    for idx, child in zip([mom_idx, dad_idx], children):
+                        del child.fitness.values
+                        offspring[idx] = child
+                        l.debug("Cross-over generated child {} which replaced parent({}){}", child.test_id, idx,
+                                offspring[idx].test_id)
+                else:
+                    l.debug("Did not mate ({}){} and ({}){} ", mom_idx, mom.test_id, dad_idx, dad.test_id)
+
+            l.debug("Mutate individuals.")
+            for mut_idx in range(len(offspring)):
+                mutable = offspring[mut_idx]
+
+                if random.random < c.ev.mut_chance:
+                    l.debug("Mutating ({}){} ", mut_idx, mutable .test_id)
+
+                    mutated, aux = self.toolbox.mutate(mutable)
+
+                    if mutated:
+                        l.debug('Mutation produced {}', mutated.test_id)
+                        del mutated.fitness.values
+                        offspring[mut_idx] = mutated
+
+            next_generation.extend([child for child in offspring if not child.fitness.valid])
+
+            previous_population = self.population
+            self.population = next_generation
+            self.step += 1
+            total_evol_time += self.end_evol_clock()
+
+            # Execute newly generated tests
+            # Execute the tests one by one and evaluate their fitness
+            l.debug("Running newly generated tests")
+            for idx, executed_test in enumerate(self.run_suite()):
+                self.beg_evaluation_clock()
+                l.debug("Evaluating execution of test %s", executed_test.test_id)
+                fitness_values, reason = self.toolbox.evaluate(executed_test, self.population)
+                executed_test.fitness.values = fitness_values
+                l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
+                total_evaluation_time += self.end_evaluation_clock()
+
+                # Has the execution reached its final goal?
+                if self.toolbox.stop_search(executed_test):
+                    l.debug("The search achieved its goal. Stop.")
+                    return ('goal_achieved', (executed_test, self.population))
+
+                if self.get_wall_time_clock() >= time_limit:
+                    l.info("Enforcing time limit %d", time_limit)
+                    # Notify the "caller" about ending the generation.
+                    return ('time_limit_reached', (self.population))
+
+            # Combine the next_generation with the previous population
+            self.toolbox.merge_populations(self.population, previous_population)
+
+            # This might create new random tests which are not yet evaluated.... So we need to execute them
+            for idx, executed_test in enumerate(self.run_suite()):
+                self.beg_evaluation_clock()
+                l.debug("Evaluating execution of test %s", executed_test.test_id)
+                fitness_values, reason = self.toolbox.evaluate(executed_test, self.population)
+                executed_test.fitness.values = fitness_values
+                l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
+                total_evaluation_time += self.end_evaluation_clock()
+
+                # Has the execution reached its final goal?
+                if self.toolbox.stop_search(executed_test):
+                    l.debug("The search achieved its goal. Stop.")
+                    return ('goal_achieved', (executed_test, self.population))
+
+                if self.get_wall_time_clock() >= time_limit:
+                    l.info("Enforcing time limit %d", time_limit)
+                    # Notify the "caller" about ending the generation.
+                    return ('time_limit_reached', (self.population))
+
+            # TODO What about test EXECUTION time?
+            l.debug("Total Time Spent in Evaluating Tests {}", str(total_evaluation_time))
+            l.debug("Total Time Spent in Generating Tests {}", str(total_evol_time))
+
+            # Notify that we completed an evolution round
+            yield ('finish_evolution', (self.population, total_evol_time, total_evaluation_time))
+
+        # Notify that we run all the generations and we can stop the search
+        yield ('budget_limit_reached', (self.population, total_evol_time, total_evaluation_time))
+
+from asfault.selectors import *
+from asfault.estimators import *
+from asfault.search_stoppers import *
+
+@DeprecationWarning
 class TestSuiteGenerator:
 
     def __init__(self,
                  rng=random.Random(),
                  evaluator=StructureEvaluator(),
-                 selector=TournamentSelector(random.Random(), 3),
+                 selector=TournamentSelector(3),
                  estimator=TurnAndLengthEstimator(),
                  search_stopper=NeverStopSearchStopper(),
                  runner_factory=None,

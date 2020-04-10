@@ -1,15 +1,64 @@
 import logging as l
+import random
+
 from asfault.network import *
+
+
+class MetaMutator():
+    """ This mutation operator includes all the single purpose mutators"""
+    def init_mutators(self):
+        for key, factory in SEG_FACTORIES.items():
+            name = 'repl_' + key
+            self.mutators[name] = SegmentReplacingMutator(self.rng, name, key, factory)
+
+    def roll_mutation(self, resident):
+        return random.random() <= c.ev.mut_chance
+
+    def attempt_mutation(self, resident, mutator):
+        epsilon = 0.25
+        while True:
+            try:
+                mutated, aux = mutator.apply(resident)
+                if mutated and mutated.complete_is_consistent():
+                    test = self.test_from_network(mutated)
+                    return mutated, aux
+            except Exception as e:
+                l.error('Exception while creating test from child: ')
+                l.exception(e)
+            failed = self.rng.random()
+            if failed < epsilon:
+                break
+
+            epsilon *= 1.1
+
+        return None, {}
+
+    def mutate(self, resident):
+        mutators = [*self.mutators.values()]
+        random.shuffle(mutators)
+        while mutators:
+            mutator = mutators.pop()
+            mutated, aux = self.attempt_mutation(resident, mutator)
+            if not aux:
+                aux = {}
+
+            aux['type'] = mutator
+            if mutated:
+                test = self.test_from_network(mutated)
+                l.info('Successfully applied mutation: %s', str(type(mutator)))
+                return test, aux
+
+        return None, {}
+
 
 
 class Mutator:
     def __init__(self, name, rng):
         self.name = name
-        self.rng = rng
+        random = rng
 
     def apply(self, resident):
         raise NotImplementedError()
-
 
 class SegmentReplacingMutator(Mutator):
     def __init__(self, rng, name, key, factory):
@@ -22,7 +71,7 @@ class SegmentReplacingMutator(Mutator):
         ) if option.roadtype not in GHOST_TYPES]
         options = [option for option in options if option.key != self.key]
         if options:
-            return self.rng.choice(options)
+            return random.choice(options)
         return None
 
     def apply(self, resident):
@@ -52,7 +101,7 @@ class TurnAngleMutator(SegmentReplacingMutator):
         turns.extend(network.get_nodes(TYPE_L_TURN))
         turns.extend(network.get_nodes(TYPE_R_TURN))
         if turns:
-            self.rng.shuffle(turns)
+            random.shuffle(turns)
             for turn in turns:
                 if turn.angle != self.angle:
                     return turn
@@ -78,7 +127,7 @@ class StraightLengthMutator(SegmentReplacingMutator):
         straights = list()
         straights.extend(network.get_nodes(TYPE_STRAIGHT))
         if straights:
-            self.rng.shuffle(straights)
+            random.shuffle(straights)
             for straight in straights:
                 if straight.length != self.length:
                     return straight

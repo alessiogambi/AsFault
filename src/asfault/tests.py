@@ -191,6 +191,83 @@ def get_normalised_point_difference(a_line, b_line):
 
     return diff
 
+from shapely.geometry import box
+from asfault.generator import RoadGenerator
+import random
+
+class RoadTestFactory:
+
+    def __init__(self, env_size):
+        self.test_count = 1
+        self.map_box = box(-env_size, -env_size, env_size, env_size)
+
+    def generate_random_test(self):
+        # NOTE: This cannot be a string, must be a number !
+        test_id = self.test_count
+
+        while True:
+            generator = RoadGenerator(self.map_box)
+            generated_tests = []
+            test_stub = RoadTest(test_id, generator.network, None, None)
+            while generator.grow() != generator.done:
+                pass
+
+            if test_stub.network.complete_is_consistent():
+                candidates = generator.network.get_start_goal_candidates()
+                for start, goal in candidates:
+                    paths = generator.network.all_paths(start, goal)
+                    for path in paths:
+                        start_coords, goal_coords = get_start_goal_coords(generator.network, start, goal)
+                        test = RoadTest(test_id, generator.network, start_coords, goal_coords)
+                        test.set_path(path)
+                        generated_tests.append(test)
+
+            if len(generated_tests) == 0:
+                l.warning("Cannot generate any random test. Retry")
+                continue
+            else:
+                random_test = random.choice(generated_tests)
+                l.info("Generate new random individual: %s", random_test.test_id)
+                self.test_count += 1
+                return random_test
+        pass
+
+    def generate_single_test(self):
+        network = generate_networks(self.bounds, [self.next_seed()])[0]
+        test = self.test_from_network(network)
+        return test
+
+    def generate_tests(self, amount):
+        ret = []
+        todo = []
+        generators = {}
+        for i in range(amount):
+            generator = RoadGenerator(self.bounds, self.next_seed())
+            test = RoadTest(self.next_test_id(), generator.network, None, None)
+            todo.append(test)
+            generators[test.test_id] = generator
+        yield ('init_generation', todo)
+        echo = todo
+        while todo:
+            todo_buf = []
+            for test in todo:
+                generator = generators[test.test_id]
+                result = generator.grow()
+                if result != RoadGenerator.done:
+                    todo_buf.append(test)
+                else:
+                    if test.network.complete_is_consistent():
+                        network = test.network
+                        test = self.test_from_network(network)
+                        ret.append(test)
+                    else:
+                        generator = RoadGenerator(self.bounds, self.next_seed())
+                        test = RoadTest(self.next_test_id(), generator.network, None, None)
+                        todo_buf.append(test)
+                        generators[test.test_id] = generator
+            yield ('update_generation', echo)
+            todo = todo_buf
+        yield ('finish_generation', ret)
 
 class RoadTest:
 
