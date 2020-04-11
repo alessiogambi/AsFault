@@ -293,8 +293,9 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
 
-            # The evolution loop is done and and a next
+            # The evolution loop is done and a next one is about to begin
             if step == 'finish_evolution':
+                # TODO This is wrong?
                 l.warning("EVOLUTION FINISHED: %s", ", ".join([str(test.test_id) for test in data]))
                 # final_path = c.rg.get_final_path()
                 population = data

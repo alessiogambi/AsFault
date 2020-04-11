@@ -608,10 +608,10 @@ class DeapTestGeneration:
             l.debug("Total Time Spent in Generating Tests {}", str(total_evol_time))
 
             # Notify that we completed an evolution round
-            yield ('finish_evolution', (self.population, total_evol_time, total_evaluation_time))
+            yield ('finish_evolution', (self.population))
 
         # Notify that we run all the generations and we can stop the search
-        yield ('budget_limit_reached', (self.population, total_evol_time, total_evaluation_time))
+        yield ('budget_limit_reached', (self.population)) #, total_evol_time, total_evaluation_time))
 
 from asfault.selectors import *
 from asfault.estimators import *
