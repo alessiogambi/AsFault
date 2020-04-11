@@ -2,14 +2,21 @@ import logging as l
 import random
 
 from asfault.network import *
-
+from asfault.tests import test_from_network
 
 class MetaMutator():
+
+    mutators = dict()
+
+    def __init__(self):
+        self.init_mutators()
+
+
     """ This mutation operator includes all the single purpose mutators"""
     def init_mutators(self):
         for key, factory in SEG_FACTORIES.items():
             name = 'repl_' + key
-            self.mutators[name] = SegmentReplacingMutator(self.rng, name, key, factory)
+            self.mutators[name] = SegmentReplacingMutator(name, key, factory)
 
     def roll_mutation(self, resident):
         return random.random() <= c.ev.mut_chance
@@ -20,12 +27,13 @@ class MetaMutator():
             try:
                 mutated, aux = mutator.apply(resident)
                 if mutated and mutated.complete_is_consistent():
-                    test = self.test_from_network(mutated)
+                    # TODO What's this ?
+                    # test = self.test_from_network(mutated)
                     return mutated, aux
             except Exception as e:
                 l.error('Exception while creating test from child: ')
                 l.exception(e)
-            failed = self.rng.random()
+            failed = random.random()
             if failed < epsilon:
                 break
 
@@ -44,31 +52,29 @@ class MetaMutator():
 
             aux['type'] = mutator
             if mutated:
-                test = self.test_from_network(mutated)
+                test = test_from_network(mutated)
                 l.info('Successfully applied mutation: %s', str(type(mutator)))
-                return test, aux
+                return test #, aux
 
-        return None, {}
+        return None #, {}
 
 
 
 class Mutator:
-    def __init__(self, name, rng):
+    def __init__(self, name):
         self.name = name
-        random = rng
 
     def apply(self, resident):
         raise NotImplementedError()
 
 class SegmentReplacingMutator(Mutator):
-    def __init__(self, rng, name, key, factory):
-        super().__init__(name, rng)
+    def __init__(self, name, key, factory):
+        super().__init__(name)
         self.key = key
         self.factory = factory
 
     def get_target(self, network):
-        options = [option for option in network.nodes.values(
-        ) if option.roadtype not in GHOST_TYPES]
+        options = [option for option in network.nodes.values() if option.roadtype not in GHOST_TYPES]
         options = [option for option in options if option.key != self.key]
         if options:
             return random.choice(options)
@@ -92,8 +98,8 @@ class TurnAngleMutator(SegmentReplacingMutator):
     TURN_MIN = 15
     TURN_MAX = 90
 
-    def __init__(self, rng, angle):
-        super().__init__(TurnAngleMutator.NAME.format(angle), rng)
+    def __init__(self, angle):
+        super().__init__(TurnAngleMutator.NAME.format(angle))
         self.angle = angle
 
     def get_target(self, network):
@@ -119,8 +125,8 @@ class TurnAngleMutator(SegmentReplacingMutator):
 class StraightLengthMutator(SegmentReplacingMutator):
     NAME = 'straight_length_mutator_{}'
 
-    def __init__(self, rng, length):
-        super().__init__(StraightLengthMutator.NAME.format(length), rng)
+    def __init__(self, length):
+        super().__init__(StraightLengthMutator.NAME.format(length))
         self.length = length
 
     def get_target(self, network):

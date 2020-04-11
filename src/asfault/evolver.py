@@ -258,10 +258,18 @@ class RandomEvaluator(SuiteEvaluator):
         return self.rng.random(), test.execution.reason
 
 
-# TODO Not that it might be misleading to talk about test suites, when we indeed evolve test cases...
+def determine_path(test):
+    start_node = test.network.get_nodes_at(test.start)
+    goal_node = test.network.get_nodes_at(test.goal)
+    assert len(start_node) > 0
+    assert len(goal_node) > 0
+    start_node = start_node.pop()
+    goal_node = goal_node.pop()
+    return test.network.shortest_path(start_node, goal_node)
+
+
+
 class DeapTestGeneration:
-    def __init__(self):
-        pass
 
     def __init__(self,
                  toolbox,
@@ -285,12 +293,6 @@ class DeapTestGeneration:
         self.test_id = 1
         self.step = 0
 
-        self.sg_idx = 0
-
-    def next_test_id(self):
-        ret = self.test_id
-        self.test_id += 1
-        return ret
 
     def run_test(self, test):
         while True:
@@ -319,89 +321,6 @@ class DeapTestGeneration:
         test = self.test_from_network(network)
         return test
 
-    def test_from_network(self, network):
-        start, goal, path = self.determine_start_goal_path(network)
-        l.debug('Got start, goal, and path for network.')
-        test = RoadTest(self.next_test_id(), network, start, goal)
-        if path:
-            l.debug('Setting path of new test: %s', test.test_id)
-            test.set_path(path)
-            l.debug('Set path of offspring.')
-        return test
-
-
-    # # TODO sIntroduce random individuals
-    # def roll_introduction(self):
-    #     return self.rng.random() <= c.ev.intro_chance
-
-    def determine_start_goal_path(self, network):
-        best_start, best_goal = None, None
-        best_path = None
-        best_score = -1
-
-        epsilon = 0.1
-        candidates = list(network.get_start_goal_candidates())
-        self.rng.shuffle(candidates)
-        candidate_idx = 0
-        sg_file = 'sg_{:08}.png'.format(self.sg_idx)
-        sg_file = os.path.join(c.rg.get_plots_path(), sg_file)
-        sg_json = 'sg_{:08}.json'.format(self.sg_idx)
-        sg_json = os.path.join(c.rg.get_plots_path(), sg_json)
-        # with open(sg_json, 'w') as out_file:
-        # out_file.write(json.dumps(NetworkLayout.to_dict(network), indent=4, sort_keys=True))
-        self.sg_idx += 1
-        # plot_network(sg_file, network)
-        if candidates:
-            for start, goal in candidates:
-                # l.info(sg_file)
-                l.info('Checking candidate: (%s, %s), %s/%s', start, goal, candidate_idx, len(candidates))
-                candidate_idx += 1
-                paths = network.all_paths(start, goal)
-                # paths = network.all_shortest_paths(start, goal)
-                start_coord, goal_coord = get_start_goal_coords(network, start, goal)
-                i = 0
-                done = 0.05
-                for path in paths:
-                    l.info('Path has length: %s', len(path))
-                    try:
-                        polyline = get_path_polyline(network, start_coord, goal_coord, path)
-                    except:
-                        break
-                    l.info('Got polyline.')
-                    score = self.estimator.score_path(path, polyline)
-                    l.info('Got score estimation: %s', score)
-                    if score > best_score:
-                        best_start = start
-                        best_goal = goal
-                        best_path = path
-                        best_score = score
-                    i += 1
-
-                    done = self.rng.random()
-                    if done < epsilon:
-                        break
-
-                    epsilon *= 1.25
-                if done < epsilon:
-                    break
-
-            best_start, best_goal = get_start_goal_coords(network, best_start,
-                                                          best_goal)
-
-            return best_start, best_goal, best_path
-
-        return None, None, None
-
-    def determine_path(self, test):
-        start_node = test.network.get_nodes_at(test.start)
-        goal_node = test.network.get_nodes_at(test.goal)
-        assert len(start_node) > 0
-        assert len(goal_node) > 0
-        start_node = start_node.pop()
-        goal_node = goal_node.pop()
-        return test.network.shortest_path(start_node, goal_node)
-
-
     def beg_evol_clock(self):
         self.beg_evol = datetime.datetime.now()
 
@@ -427,9 +346,6 @@ class DeapTestGeneration:
         assert self.wall_time
         ret = datetime.datetime.now() - self.wall_time
         return ret.seconds
-
-    def check_stopping_condition(self):
-        return False
 
     def evolve_suite(self, generations, time_limit):
         # TODO Check that 1+1EA is still possible
@@ -546,7 +462,7 @@ class DeapTestGeneration:
                 if random.random() < c.ev.mut_chance:
                     l.debug("Mutating ({}){} ", mut_idx, mutable .test_id)
 
-                    mutated, aux = self.toolbox.mutate(mutable)
+                    mutated = self.toolbox.mutate(mutable)
 
                     if mutated:
                         l.debug('Mutation produced {}', mutated.test_id)
@@ -574,12 +490,12 @@ class DeapTestGeneration:
                 # Has the execution reached its final goal?
                 if self.toolbox.stop_search(executed_test):
                     l.debug("The search achieved its goal. Stop.")
-                    return ('goal_achieved', (executed_test, self.population))
+                    yield ('goal_achieved', (executed_test, self.population))
 
                 if self.get_wall_time_clock() >= time_limit:
                     l.info("Enforcing time limit %d", time_limit)
                     # Notify the "caller" about ending the generation.
-                    return ('time_limit_reached', (self.population))
+                    yield ('time_limit_reached', (self.population))
 
             # Combine the next_generation with the previous population
             self.toolbox.merge_populations(self.population, previous_population)
@@ -596,12 +512,12 @@ class DeapTestGeneration:
                 # Has the execution reached its final goal?
                 if self.toolbox.stop_search(executed_test):
                     l.debug("The search achieved its goal. Stop.")
-                    return ('goal_achieved', (executed_test, self.population))
+                    yield ('goal_achieved', (executed_test, self.population))
 
                 if self.get_wall_time_clock() >= time_limit:
                     l.info("Enforcing time limit %d", time_limit)
                     # Notify the "caller" about ending the generation.
-                    return ('time_limit_reached', (self.population))
+                    yield ('time_limit_reached', (self.population))
 
             # TODO What about test EXECUTION time?
             l.debug("Total Time Spent in Evaluating Tests {}", str(total_evaluation_time))
@@ -617,592 +533,592 @@ from asfault.selectors import *
 from asfault.estimators import *
 from asfault.search_stoppers import *
 
-@DeprecationWarning
-class TestSuiteGenerator:
-
-    def __init__(self,
-                 rng=random.Random(),
-                 evaluator=StructureEvaluator(),
-                 selector=TournamentSelector(3),
-                 estimator=TurnAndLengthEstimator(),
-                 search_stopper=NeverStopSearchStopper(),
-                 runner_factory=None,
-                 sort_pop=True,
-                 plotter=None,
-                 **evopts):
-        self.rng = rng
-        self.evaluator = evaluator
-        self.selector = selector
-        self.estimator = estimator
-        self.search_stopper = search_stopper
-        self.runner_factory = runner_factory
-        self.sort_pop = sort_pop
-        self.plotter = plotter
-        self.evopts = evopts
-
-        size = c.ev.bounds
-        self.bounds = box(-size, -size, size, size)
-        self.max_pop = c.ev.pop_size
-
-        self.population = []
-
-        self.test_id = 1
-        self.step = 0
-
-        self.random_exp = False
-
-        self.merger = crossovers.PartialMerge(self.rng)
-        self.joiner = crossovers.Join(self.rng)
-
-        self.mutators = {}
-        self.init_mutators()
-        self.sg_idx = 0
-
-    def init_crossovers(self):
-        pass
-        # for m_count in range(1, 5):
-        #     for d_count in range(1, 5):
-        #         key = 'partial_crossover_{}x{}'.format(m_count, d_count)
-        #         self.crossovers[key] = crossovers.PartialMerge(self.rng, m_count=m_count, d_count=d_count)
-
-        #self.crossovers['partial_crossover_random'] = crossovers.PartialMerge(self.rng)
-        #self.crossovers['join'] = crossovers.Join(self.rng)
-
-    def init_mutators(self):
-        for key, factory in SEG_FACTORIES.items():
-            name = 'repl_' + key
-            self.mutators[name] = mutations.SegmentReplacingMutator(self.rng, name, key, factory)
-
-    def next_seed(self):
-        return self.rng.randint(0, 2 ** 32 - 1)
-
-    def next_test_id(self):
-        ret = self.test_id
-        self.test_id += 1
-        return ret
-
-    def run_test(self, test):
-        while True:
-            runner = self.runner_factory(test)
-            try:
-                execution = runner.run()
-                return execution
-            except Exception as e:
-                l.error('Error running test %s', test)
-                l.exception(e)
-                sleep(30.0)
-            finally:
-                runner.close()
-
-    def run_suite(self):
-        for test in self.population:
-            if not test.execution:
-                # Execute the test
-                execution = self.run_test(test)
-                test.execution = execution
-                # Pass the result back to enable
-                yield execution
-
-
-    def spawn_test(self, bounds, seed):
-        network = generate_networks(bounds, [seed])[0]
-        test = self.test_from_network(network)
-        return test
-
-    def test_from_network(self, network):
-        start, goal, path = self.determine_start_goal_path(network)
-        l.debug('Got start, goal, and path for network.')
-        test = RoadTest(self.next_test_id(), network, start, goal)
-        if path:
-            l.debug('Setting path of new test: %s', test.test_id)
-            test.set_path(path)
-            l.debug('Set path of offspring.')
-        return test
-
-    def attempt_crosssover(self, mom, dad, crossover):
-        l.debug('Attempting to cross over: %s (%s) %s', mom, type(crossover), dad)
-        epsilon = 0.01
-        while True:
-            children, aux = crossover.apply(mom, dad)
-            if children:
-                consistent = []
-                for child in children:
-                    try:
-                        if child.complete_is_consistent():
-                            test = self.test_from_network(child)
-                            consistent.append(child)
-                        else:
-                            break
-                    except Exception as e:
-                        l.error('Exception while creating test from child: ')
-                        #l.exception(e)
-                        break
-
-                if consistent:
-                    return consistent, aux
-
-            failed = self.rng.random()
-            if failed < epsilon:
-                break
-
-            epsilon *= 1.05
-
-        return None, aux
-
-    def crossover(self, mom, dad):
-        choice = self.rng.random()
-        choices = []
-
-        # l.debug('Picking crossover %s < %s ?', choice, c.ev.join_probability)
-        if choice < c.ev.join_probability:
-            choices = [self.joiner]
-            l.info('Crossover using for %s', choice)
-        else:
-            if c.ev.try_all_ops:
-                choices.append(self.merger)
-                l.info('Crossover using for %s', choice)
-            else:
-                l.info('Skip Crossover')
-
-        for choice in choices:
-            children, aux = choice.try_all(mom, dad, self)
-            l.info('Finished trying all crossovers')
-
-            #children, aux = self.attempt_crosssover(mom, dad, choice)
-            if not aux:
-                aux = {}
-            if children:
-                aux['type'] = choice
-                l.debug('Cross over was applicable.')
-                tests = []
-                for child in children:
-                    if child.complete_is_consistent():
-                        test = self.test_from_network(child)
-                        tests.append(test)
-                return tests, aux
-
-        l.debug('Cross over between %s x %s considered impossible.', mom, dad)
-        return None, {}
-
-    def roll_mutation(self, resident):
-        return self.rng.random() <= c.ev.mut_chance
-
-    def roll_introduction(self):
-        return self.rng.random() <= c.ev.intro_chance
-
-    def attempt_mutation(self, resident, mutator):
-        epsilon = 0.25
-        while True:
-            try:
-                mutated, aux = mutator.apply(resident)
-                if mutated and mutated.complete_is_consistent():
-                    test = self.test_from_network(mutated)
-                    return mutated, aux
-            except Exception as e:
-                l.error('Exception while creating test from child: ')
-                l.exception(e)
-            failed = self.rng.random()
-            if failed < epsilon:
-                break
-
-            epsilon *= 1.1
-
-        return None, {}
-
-    def mutate(self, resident):
-        mutators = [*self.mutators.values()]
-        self.rng.shuffle(mutators)
-        while mutators:
-            mutator = mutators.pop()
-            mutated, aux = self.attempt_mutation(resident, mutator)
-            if not aux:
-                aux = {}
-
-            aux['type'] = mutator
-            if mutated:
-                test = self.test_from_network(mutated)
-                l.info('Successfully applied mutation: %s', str(type(mutator)))
-                return test, aux
-
-        return None, {}
-
-    def determine_start_goal_path(self, network):
-        best_start, best_goal = None, None
-        best_path = None
-        best_score = -1
-
-        epsilon = 0.1
-        candidates = list(network.get_start_goal_candidates())
-        self.rng.shuffle(candidates)
-        candidate_idx = 0
-        sg_file = 'sg_{:08}.png'.format(self.sg_idx)
-        sg_file = os.path.join(c.rg.get_plots_path(), sg_file)
-        sg_json = 'sg_{:08}.json'.format(self.sg_idx)
-        sg_json = os.path.join(c.rg.get_plots_path(), sg_json)
-        #with open(sg_json, 'w') as out_file:
-            #out_file.write(json.dumps(NetworkLayout.to_dict(network), indent=4, sort_keys=True))
-        self.sg_idx += 1
-        #plot_network(sg_file, network)
-        if candidates:
-            for start, goal in candidates:
-                #l.info(sg_file)
-                l.info('Checking candidate: (%s, %s), %s/%s', start, goal, candidate_idx, len(candidates))
-                candidate_idx += 1
-                paths = network.all_paths(start, goal)
-                #paths = network.all_shortest_paths(start, goal)
-                start_coord, goal_coord = get_start_goal_coords(network, start, goal)
-                i = 0
-                done = 0.05
-                for path in paths:
-                    l.info('Path has length: %s', len(path))
-                    try:
-                        polyline = get_path_polyline(network, start_coord, goal_coord, path)
-                    except:
-                        break
-                    l.info('Got polyline.')
-                    score = self.estimator.score_path(path, polyline)
-                    l.info('Got score estimation: %s', score)
-                    if score > best_score:
-                        best_start = start
-                        best_goal = goal
-                        best_path = path
-                        best_score = score
-                    i += 1
-
-                    done = self.rng.random()
-                    if done < epsilon:
-                        break
-
-                    epsilon *= 1.25
-                if done < epsilon:
-                    break
-
-            best_start, best_goal = get_start_goal_coords(network, best_start,
-                                                          best_goal)
-
-            return best_start, best_goal, best_path
-
-        return None, None, None
-
-    def determine_path(self, test):
-        start_node = test.network.get_nodes_at(test.start)
-        goal_node = test.network.get_nodes_at(test.goal)
-        assert len(start_node) > 0
-        assert len(goal_node) > 0
-        start_node = start_node.pop()
-        goal_node = goal_node.pop()
-        return test.network.shortest_path(start_node, goal_node)
-
-    def generate_single_test(self):
-        network = generate_networks(self.bounds, [self.next_seed()])[0]
-        test = self.test_from_network(network)
-        return test
-
-    def generate_tests(self, amount):
-        ret = []
-        todo = []
-        generators = {}
-        for i in range(amount):
-            generator = RoadGenerator(self.bounds, self.next_seed())
-            test = RoadTest(self.next_test_id(), generator.network, None, None)
-            todo.append(test)
-            generators[test.test_id] = generator
-        yield ('init_generation', todo)
-        echo = todo
-        while todo:
-            todo_buf = []
-            for test in todo:
-                generator = generators[test.test_id]
-                result = generator.grow()
-                if result != RoadGenerator.done:
-                    todo_buf.append(test)
-                else:
-                    if test.network.complete_is_consistent():
-                        network = test.network
-                        test = self.test_from_network(network)
-                        ret.append(test)
-                    else:
-                        generator = RoadGenerator(self.bounds, self.next_seed())
-                        test = RoadTest(self.next_test_id(), generator.network, None, None)
-                        todo_buf.append(test)
-                        generators[test.test_id] = generator
-            yield ('update_generation', echo)
-            todo = todo_buf
-        yield ('finish_generation', ret)
-
-    def beg_evol_clock(self):
-        self.beg_evol = datetime.datetime.now()
-
-    def end_evol_clock(self):
-        assert self.beg_evol
-        ret = datetime.datetime.now() - self.beg_evol
-        self.beg_evol = None
-        return ret.seconds
-
-    def start_wall_time_clock(self):
-        self.wall_time = datetime.datetime.now()
-
-    def get_wall_time_clock(self):
-        assert self.wall_time
-        ret = datetime.datetime.now() - self.wall_time
-        return ret.seconds
-
-
-    def is_new(self, candidate):
-        for test in self.population:
-            distance = test.distance(candidate)
-            if distance < UNIQUE_THRESHOLD:
-                l.info('Candidate test %s is not considered unique enough. Too similar to existing test: %s ~= %s, %s',
-                       str(candidate), str(candidate), str(test), distance)
-                return False
-
-        l.info('Candidate test %s is considered new.', str(candidate))
-        return True
-
-    def check_stopping_condition(self):
-        return False
-
-    # "Interacting evolution"
-    def evolve_suite(self, generations, time_limit=-1):
-        # Start wall time clock to compute time limit
-        self.start_wall_time_clock()
-
-        # Initialise pop
-        l.debug('Starting evolution clock.')
-
-        if time_limit > 0:
-            l.debug('Evolution butget is %s seconds', str(time_limit))
-
-        self.beg_evol_clock()
-
-        l.info('Initialising test suite population.')
-        for state in self.generate_tests(self.max_pop - len(self.population)):
-            if state[0] == 'finish_generation':
-                self.population = state[1]
-            yield state
-        total_evol_time = self.end_evol_clock()
-        l.debug('Paused evolution clock at: %s', total_evol_time)
-
-        l.debug('Running initial evaluation of test suite.')
-
-        l.debug('Using evaluator: %s', str(type(self.evaluator)))
-
-        restart_search = False
-
-        ### UGLY: THIS SHOULD BE REFACTORED TO FIT IN A METHOD OR SOMETHING
-        # Instead of executing everything AND then check conditions run_suite yields the partial result and we decide
-        # what to do next.
-        for execution in self.run_suite():
-
-            # Has the execution reached its final goal?
-            if self.search_stopper.stopping_condition_met(execution):
-                l.info("Search achieved its goal. Restart the search...")
-                restart_search = True
-                yield ('goal_achieved', (execution, self.population))
-                break
-
-            # Is the time limit reached?
-            if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-                l.info("Enforcing time limit %d after initial generation", time_limit)
-                # Notify the "caller" about ending the generation.
-                yield ('time_limit_reached', (self.population))
-                # We need to evaluate the tests generate so far
-                break
-
-
-        # if not restart_search:
-        if True:
-            # Compute fitness function of the individuals. Not really necessary
-            evaluation = self.evaluator.evaluate_suite(self.population)
-            total_eval_time = evaluation.duration
-            l.debug('Paused evaluation clock at: %s', total_eval_time)
-
-            if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-                return
-
-        l.debug('Entering main evolution loop.')
-        for _ in range(generations):
-
-            l.debug('Starting evolution clock.')
-            self.beg_evol_clock()
-
-            # EVOLUTION OR RESTART THOSE GENERETE THE NEXT GEN
-            if self.random_exp or restart_search:
-                if restart_search:
-                    l.info("Restarting the search")
-                    restart_search = False
-
-                for state in self.generate_tests(self.max_pop):
-                    if state[0] == 'finish_generation':
-                        nextgen = state[1]
-            else:
-                # RoadTest.get_suite_seg_distribution(self.population, 2)
-                yield ('evaluated', (self.population, evaluation, total_evol_time, total_eval_time))
-
-                l.info('Test evolution step: %s', self.step)
-                l.debug('Sorting population by score.')
-                self.population = sorted(self.population, key=lambda x: x.score)
-                if len(self.population) > self.max_pop:
-                    self.population = self.population[len(self.population) - self.max_pop:]
-                yield ('looped', self.population)
-
-                # ELITISM: NextGen always contains the BEST individual from the previous population? But best is the
-                # last one?
-                nextgen = [self.population[-1]]
-
-                # INTRODUCE NEW RANDOM INDIVIDUALS IN THE POPULATION
-                if self.roll_introduction():
-                    test = self.generate_single_test()
-                    if self.is_new(test):
-                        l.info('Introducing random new test.')
-                        nextgen.append(test)
-                        yield ('introduce', test)
-
-                # SELECT INDIVIDUALS
-                l.debug('Selecting mates for crossover.')
-                l.debug('Using selector: %s', str(type(self.selector)))
-                pairs = list()
-                total_pairs = len(self.population) + len(self.population)
-                attempts = 0
-
-                # PATCH TO ENABLE 1+1EA
-                #   pop has 1 individual, we mutate it (always), and select the best between original and mutation
-                if self.max_pop == 1:
-                    l.info("1+1 EA")
-                    resident = self.population[0]
-                    mutated, aux = self.mutate(resident)
-                    # Mutation might go wrong
-                    if mutated:
-                        if self.is_new(mutated):
-                            # TODO Not sure we actually need test_file
-                            test_file = c.rg.get_plots_path()
-                            test_file = os.path.join(test_file, 'test_{:06}.png'.format(mutated.test_id))
-                            yield ('mutated', (resident, mutated, aux))
-
-                            # At this point we add this into nextGen and move on to the evaluation part
-                            nextgen.append(mutated)
-                        else:
-                            l.warning("Mutated individual %s is NOT considered new/novel", mutated.test_id)
-                    else:
-                        l.info("Invalid mutation %s", aux)
-                else:
-                    # This works Only if there are more than 1? INDIVIDUALS
-                    while len(nextgen) < self.max_pop and len(pairs) < total_pairs and attempts <= total_pairs:
-                        attempts += 1
-                        mom = self.selector.select(self.population)
-                        l.debug('Selected mom: %s', str(mom))
-                        dad = self.selector.select(self.population, ignore={mom})
-                        l.debug('Selected dad: %s', str(dad))
-
-                        pair_id = '{}x{}'.format(mom.test_id, dad.test_id)
-                        pair_id2 = '{}x{}'.format(dad.test_id, mom.test_id)
-                        if pair_id in pairs:
-                            continue
-                        if pair_id2 in pairs:
-                            continue
-
-                        pairs.append(pair_id)
-                        pairs.append(pair_id2)
-
-                        if mom == dad:
-                            continue
-
-                        # CROSSOVER
-                        children, aux = self.crossover(mom, dad)
-                        if children:
-                            l.debug('Produced %s children from %s x %s crossover', len(children), str(mom), str(dad))
-
-                            l.debug('Mutating children.')
-                            mutations = []
-                            for child in children:
-                                if self.is_new(child):
-                                    if self.roll_mutation(child):
-                                        mutated, aux = self.mutate(child)
-                                        if mutated:
-                                            if self.is_new(mutated):
-                                                mutations.append(mutated)
-                                                test_file = c.rg.get_plots_path()
-                                                test_file = os.path.join(test_file, 'test_{:06}.png'.format(mutated.test_id))
-                                                #plot_test(test_file, mutated)
-                                                yield ('mutated', (child, mutated, aux))
-                                        else:
-                                            mutations.append(child)
-                                            yield ('crossedover', (mom, dad, children, aux))
-                                            test_file = c.rg.get_plots_path()
-                                            test_file = os.path.join(test_file, 'test_{:06}.png'.format(child.test_id))
-                                            #plot_test(test_file, child)
-                                    else:
-                                        mutations.append(child)
-                                        yield ('crossedover', (mom, dad, children, aux))
-                                        test_file = c.rg.get_plots_path()
-                                        test_file = os.path.join(test_file, 'test_{:06}.png'.format(child.test_id))
-                                        #plot_test(test_file, child)
-
-                            for child in mutations:
-                                if len(nextgen) < self.max_pop:
-                                    nextgen.append(child)
-
-            # ELITISM: PAD NEW GENERATION WITH BEST INDIVIDUALS
-            while len(nextgen) < self.max_pop:
-                elite = self.population[-1]
-                del self.population[-1]
-                if elite not in nextgen:
-                    nextgen.append(elite)
-
-            # EVALUATION of the new population (requires to set self.population) unless search must be restarted
-            # Note that nextgen ALWAYS contains the BEST individual of the current population
-            self.population = nextgen
-            self.step += 1
-            total_evol_time += self.end_evol_clock()
-
-            # This executes ALL the tests in one shot
-            for execution in self.run_suite():
-                # Has the execution reached its final goal?
-                if self.search_stopper.stopping_condition_met(execution):
-                    l.info("Search achieved its goal. Restart the search...")
-                    restart_search = True
-                    yield ('goal_achieved', (execution, self.population))
-                    break
-
-                # Is the time limit reached?
-                if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-                    l.info("Enforcing time limit %d after initial generation", time_limit)
-                    # Notify the "caller" about ending the generation.
-                    yield ('time_limit_reached', (self.population))
-                    # We need to evaluate whatever tests we did created
-                    break
-
-            # if not restart_search:
-            if True:
-                l.info("Evaluating test suite after evolution step.")
-                l.debug('Using evaluator: %s', str(type(self.evaluator)))
-
-                evaluation = self.evaluator.evaluate_suite(self.population)
-                total_eval_time += evaluation.duration
-
-                if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
-                    return
-                
-                # AT THIS POINT WE CAN COMPARE OLD AND NEW TO DECIDE WHICH INDIVIDUALS TO KEEP AROUND - This will be
-                # overwritten by restart_search
-                if self.max_pop == 1:
-                    # At this point we have a population made of at most 2 individuals, and we pick the one which has
-                    # the higher score. Note that using LaneDist once we get an obe score goes to 1, no matter how many
-                    # OBEs the test caused.
-                    # If we keep the original one, we might end up in trying out all the mutations cyclically, while if we
-                    # select always the new one, we are piling up mutations. A third option, would be to keep the test
-                    # which achieved the most OBEs... Which eventually results in mutating the best one over and over...
-                    #
-                    # Hence I decide to keep the new ones to favor the exploration no matter the number of OBEs.
-                    l.info("1+1EA: selecting best individual between %s", ', '.join(['--'.join([str(test.test_id), str(test.score)]) for test in self.population]))
-                    # Ensures that only one element survives
-                    self.population = sorted(self.population, key=lambda t: t.score, reverse=True)[0:1]
-                    l.info("1+1EA: Best individual is %s", self.population[-1].test_id)
-
-                l.debug("Total Eval Time %s", str(total_eval_time))
-                l.debug("Total Evol Time %s", str(total_evol_time))
-
-                if evaluation.result == TestSuiteEvaluation.RESULT_TIMEOUT:
-                    yield ('timeout', (self.population, evaluation, total_evol_time, total_eval_time))
-                else:
-                    yield ('finish_evolution', self.population)
+# @DeprecationWarning
+# class TestSuiteGenerator:
+#
+#     def __init__(self,
+#                  rng=random.Random(),
+#                  evaluator=StructureEvaluator(),
+#                  selector=TournamentSelector(3),
+#                  estimator=TurnAndLengthEstimator(),
+#                  search_stopper=NeverStopSearchStopper(),
+#                  runner_factory=None,
+#                  sort_pop=True,
+#                  plotter=None,
+#                  **evopts):
+#         self.rng = rng
+#         self.evaluator = evaluator
+#         self.selector = selector
+#         self.estimator = estimator
+#         self.search_stopper = search_stopper
+#         self.runner_factory = runner_factory
+#         self.sort_pop = sort_pop
+#         self.plotter = plotter
+#         self.evopts = evopts
+#
+#         size = c.ev.bounds
+#         self.bounds = box(-size, -size, size, size)
+#         self.max_pop = c.ev.pop_size
+#
+#         self.population = []
+#
+#         self.test_id = 1
+#         self.step = 0
+#
+#         self.random_exp = False
+#
+#         self.merger = crossovers.PartialMerge(self.rng)
+#         self.joiner = crossovers.Join(self.rng)
+#
+#         self.mutators = {}
+#         self.init_mutators()
+#         self.sg_idx = 0
+#
+#     def init_crossovers(self):
+#         pass
+#         # for m_count in range(1, 5):
+#         #     for d_count in range(1, 5):
+#         #         key = 'partial_crossover_{}x{}'.format(m_count, d_count)
+#         #         self.crossovers[key] = crossovers.PartialMerge(self.rng, m_count=m_count, d_count=d_count)
+#
+#         #self.crossovers['partial_crossover_random'] = crossovers.PartialMerge(self.rng)
+#         #self.crossovers['join'] = crossovers.Join(self.rng)
+#
+#     def init_mutators(self):
+#         for key, factory in SEG_FACTORIES.items():
+#             name = 'repl_' + key
+#             self.mutators[name] = mutations.SegmentReplacingMutator(self.rng, name, key, factory)
+#
+#     def next_seed(self):
+#         return self.rng.randint(0, 2 ** 32 - 1)
+#
+#     def next_test_id(self):
+#         ret = self.test_id
+#         self.test_id += 1
+#         return ret
+#
+#     def run_test(self, test):
+#         while True:
+#             runner = self.runner_factory(test)
+#             try:
+#                 execution = runner.run()
+#                 return execution
+#             except Exception as e:
+#                 l.error('Error running test %s', test)
+#                 l.exception(e)
+#                 sleep(30.0)
+#             finally:
+#                 runner.close()
+#
+#     def run_suite(self):
+#         for test in self.population:
+#             if not test.execution:
+#                 # Execute the test
+#                 execution = self.run_test(test)
+#                 test.execution = execution
+#                 # Pass the result back to enable
+#                 yield execution
+#
+#
+#     def spawn_test(self, bounds, seed):
+#         network = generate_networks(bounds, [seed])[0]
+#         test = self.test_from_network(network)
+#         return test
+#
+#     def test_from_network(self, network):
+#         start, goal, path = self.determine_start_goal_path(network)
+#         l.debug('Got start, goal, and path for network.')
+#         test = RoadTest(self.next_test_id(), network, start, goal)
+#         if path:
+#             l.debug('Setting path of new test: %s', test.test_id)
+#             test.set_path(path)
+#             l.debug('Set path of offspring.')
+#         return test
+#
+#     def attempt_crosssover(self, mom, dad, crossover):
+#         l.debug('Attempting to cross over: %s (%s) %s', mom, type(crossover), dad)
+#         epsilon = 0.01
+#         while True:
+#             children, aux = crossover.apply(mom, dad)
+#             if children:
+#                 consistent = []
+#                 for child in children:
+#                     try:
+#                         if child.complete_is_consistent():
+#                             test = self.test_from_network(child)
+#                             consistent.append(child)
+#                         else:
+#                             break
+#                     except Exception as e:
+#                         l.error('Exception while creating test from child: ')
+#                         #l.exception(e)
+#                         break
+#
+#                 if consistent:
+#                     return consistent, aux
+#
+#             failed = self.rng.random()
+#             if failed < epsilon:
+#                 break
+#
+#             epsilon *= 1.05
+#
+#         return None, aux
+#
+#     def crossover(self, mom, dad):
+#         choice = self.rng.random()
+#         choices = []
+#
+#         # l.debug('Picking crossover %s < %s ?', choice, c.ev.join_probability)
+#         if choice < c.ev.join_probability:
+#             choices = [self.joiner]
+#             l.info('Crossover using for %s', choice)
+#         else:
+#             if c.ev.try_all_ops:
+#                 choices.append(self.merger)
+#                 l.info('Crossover using for %s', choice)
+#             else:
+#                 l.info('Skip Crossover')
+#
+#         for choice in choices:
+#             children, aux = choice.try_all(mom, dad, self)
+#             l.info('Finished trying all crossovers')
+#
+#             #children, aux = self.attempt_crosssover(mom, dad, choice)
+#             if not aux:
+#                 aux = {}
+#             if children:
+#                 aux['type'] = choice
+#                 l.debug('Cross over was applicable.')
+#                 tests = []
+#                 for child in children:
+#                     if child.complete_is_consistent():
+#                         test = self.test_from_network(child)
+#                         tests.append(test)
+#                 return tests, aux
+#
+#         l.debug('Cross over between %s x %s considered impossible.', mom, dad)
+#         return None, {}
+#
+#     def roll_mutation(self, resident):
+#         return self.rng.random() <= c.ev.mut_chance
+#
+#     def roll_introduction(self):
+#         return self.rng.random() <= c.ev.intro_chance
+#
+#     def attempt_mutation(self, resident, mutator):
+#         epsilon = 0.25
+#         while True:
+#             try:
+#                 mutated, aux = mutator.apply(resident)
+#                 if mutated and mutated.complete_is_consistent():
+#                     test = self.test_from_network(mutated)
+#                     return mutated, aux
+#             except Exception as e:
+#                 l.error('Exception while creating test from child: ')
+#                 l.exception(e)
+#             failed = self.rng.random()
+#             if failed < epsilon:
+#                 break
+#
+#             epsilon *= 1.1
+#
+#         return None, {}
+#
+#     def mutate(self, resident):
+#         mutators = [*self.mutators.values()]
+#         self.rng.shuffle(mutators)
+#         while mutators:
+#             mutator = mutators.pop()
+#             mutated, aux = self.attempt_mutation(resident, mutator)
+#             if not aux:
+#                 aux = {}
+#
+#             aux['type'] = mutator
+#             if mutated:
+#                 test = self.test_from_network(mutated)
+#                 l.info('Successfully applied mutation: %s', str(type(mutator)))
+#                 return test, aux
+#
+#         return None, {}
+#
+#     def determine_start_goal_path(self, network):
+#         best_start, best_goal = None, None
+#         best_path = None
+#         best_score = -1
+#
+#         epsilon = 0.1
+#         candidates = list(network.get_start_goal_candidates())
+#         self.rng.shuffle(candidates)
+#         candidate_idx = 0
+#         sg_file = 'sg_{:08}.png'.format(self.sg_idx)
+#         sg_file = os.path.join(c.rg.get_plots_path(), sg_file)
+#         sg_json = 'sg_{:08}.json'.format(self.sg_idx)
+#         sg_json = os.path.join(c.rg.get_plots_path(), sg_json)
+#         #with open(sg_json, 'w') as out_file:
+#             #out_file.write(json.dumps(NetworkLayout.to_dict(network), indent=4, sort_keys=True))
+#         self.sg_idx += 1
+#         #plot_network(sg_file, network)
+#         if candidates:
+#             for start, goal in candidates:
+#                 #l.info(sg_file)
+#                 l.info('Checking candidate: (%s, %s), %s/%s', start, goal, candidate_idx, len(candidates))
+#                 candidate_idx += 1
+#                 paths = network.all_paths(start, goal)
+#                 #paths = network.all_shortest_paths(start, goal)
+#                 start_coord, goal_coord = get_start_goal_coords(network, start, goal)
+#                 i = 0
+#                 done = 0.05
+#                 for path in paths:
+#                     l.info('Path has length: %s', len(path))
+#                     try:
+#                         polyline = get_path_polyline(network, start_coord, goal_coord, path)
+#                     except:
+#                         break
+#                     l.info('Got polyline.')
+#                     score = self.estimator.score_path(path, polyline)
+#                     l.info('Got score estimation: %s', score)
+#                     if score > best_score:
+#                         best_start = start
+#                         best_goal = goal
+#                         best_path = path
+#                         best_score = score
+#                     i += 1
+#
+#                     done = self.rng.random()
+#                     if done < epsilon:
+#                         break
+#
+#                     epsilon *= 1.25
+#                 if done < epsilon:
+#                     break
+#
+#             best_start, best_goal = get_start_goal_coords(network, best_start,
+#                                                           best_goal)
+#
+#             return best_start, best_goal, best_path
+#
+#         return None, None, None
+#
+#     def determine_path(self, test):
+#         start_node = test.network.get_nodes_at(test.start)
+#         goal_node = test.network.get_nodes_at(test.goal)
+#         assert len(start_node) > 0
+#         assert len(goal_node) > 0
+#         start_node = start_node.pop()
+#         goal_node = goal_node.pop()
+#         return test.network.shortest_path(start_node, goal_node)
+#
+#     def generate_single_test(self):
+#         network = generate_networks(self.bounds, [self.next_seed()])[0]
+#         test = self.test_from_network(network)
+#         return test
+#
+#     def generate_tests(self, amount):
+#         ret = []
+#         todo = []
+#         generators = {}
+#         for i in range(amount):
+#             generator = RoadGenerator(self.bounds, self.next_seed())
+#             test = RoadTest(self.next_test_id(), generator.network, None, None)
+#             todo.append(test)
+#             generators[test.test_id] = generator
+#         yield ('init_generation', todo)
+#         echo = todo
+#         while todo:
+#             todo_buf = []
+#             for test in todo:
+#                 generator = generators[test.test_id]
+#                 result = generator.grow()
+#                 if result != RoadGenerator.done:
+#                     todo_buf.append(test)
+#                 else:
+#                     if test.network.complete_is_consistent():
+#                         network = test.network
+#                         test = self.test_from_network(network)
+#                         ret.append(test)
+#                     else:
+#                         generator = RoadGenerator(self.bounds, self.next_seed())
+#                         test = RoadTest(self.next_test_id(), generator.network, None, None)
+#                         todo_buf.append(test)
+#                         generators[test.test_id] = generator
+#             yield ('update_generation', echo)
+#             todo = todo_buf
+#         yield ('finish_generation', ret)
+#
+#     def beg_evol_clock(self):
+#         self.beg_evol = datetime.datetime.now()
+#
+#     def end_evol_clock(self):
+#         assert self.beg_evol
+#         ret = datetime.datetime.now() - self.beg_evol
+#         self.beg_evol = None
+#         return ret.seconds
+#
+#     def start_wall_time_clock(self):
+#         self.wall_time = datetime.datetime.now()
+#
+#     def get_wall_time_clock(self):
+#         assert self.wall_time
+#         ret = datetime.datetime.now() - self.wall_time
+#         return ret.seconds
+#
+#
+#     def is_new(self, candidate):
+#         for test in self.population:
+#             distance = test.distance(candidate)
+#             if distance < UNIQUE_THRESHOLD:
+#                 l.info('Candidate test %s is not considered unique enough. Too similar to existing test: %s ~= %s, %s',
+#                        str(candidate), str(candidate), str(test), distance)
+#                 return False
+#
+#         l.info('Candidate test %s is considered new.', str(candidate))
+#         return True
+#
+#     def check_stopping_condition(self):
+#         return False
+#
+#     # "Interacting evolution"
+#     def evolve_suite(self, generations, time_limit=-1):
+#         # Start wall time clock to compute time limit
+#         self.start_wall_time_clock()
+#
+#         # Initialise pop
+#         l.debug('Starting evolution clock.')
+#
+#         if time_limit > 0:
+#             l.debug('Evolution butget is %s seconds', str(time_limit))
+#
+#         self.beg_evol_clock()
+#
+#         l.info('Initialising test suite population.')
+#         for state in self.generate_tests(self.max_pop - len(self.population)):
+#             if state[0] == 'finish_generation':
+#                 self.population = state[1]
+#             yield state
+#         total_evol_time = self.end_evol_clock()
+#         l.debug('Paused evolution clock at: %s', total_evol_time)
+#
+#         l.debug('Running initial evaluation of test suite.')
+#
+#         l.debug('Using evaluator: %s', str(type(self.evaluator)))
+#
+#         restart_search = False
+#
+#         ### UGLY: THIS SHOULD BE REFACTORED TO FIT IN A METHOD OR SOMETHING
+#         # Instead of executing everything AND then check conditions run_suite yields the partial result and we decide
+#         # what to do next.
+#         for execution in self.run_suite():
+#
+#             # Has the execution reached its final goal?
+#             if self.search_stopper.stopping_condition_met(execution):
+#                 l.info("Search achieved its goal. Restart the search...")
+#                 restart_search = True
+#                 yield ('goal_achieved', (execution, self.population))
+#                 break
+#
+#             # Is the time limit reached?
+#             if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+#                 l.info("Enforcing time limit %d after initial generation", time_limit)
+#                 # Notify the "caller" about ending the generation.
+#                 yield ('time_limit_reached', (self.population))
+#                 # We need to evaluate the tests generate so far
+#                 break
+#
+#
+#         # if not restart_search:
+#         if True:
+#             # Compute fitness function of the individuals. Not really necessary
+#             evaluation = self.evaluator.evaluate_suite(self.population)
+#             total_eval_time = evaluation.duration
+#             l.debug('Paused evaluation clock at: %s', total_eval_time)
+#
+#             if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+#                 return
+#
+#         l.debug('Entering main evolution loop.')
+#         for _ in range(generations):
+#
+#             l.debug('Starting evolution clock.')
+#             self.beg_evol_clock()
+#
+#             # EVOLUTION OR RESTART THOSE GENERETE THE NEXT GEN
+#             if self.random_exp or restart_search:
+#                 if restart_search:
+#                     l.info("Restarting the search")
+#                     restart_search = False
+#
+#                 for state in self.generate_tests(self.max_pop):
+#                     if state[0] == 'finish_generation':
+#                         nextgen = state[1]
+#             else:
+#                 # RoadTest.get_suite_seg_distribution(self.population, 2)
+#                 yield ('evaluated', (self.population, evaluation, total_evol_time, total_eval_time))
+#
+#                 l.info('Test evolution step: %s', self.step)
+#                 l.debug('Sorting population by score.')
+#                 self.population = sorted(self.population, key=lambda x: x.score)
+#                 if len(self.population) > self.max_pop:
+#                     self.population = self.population[len(self.population) - self.max_pop:]
+#                 yield ('looped', self.population)
+#
+#                 # ELITISM: NextGen always contains the BEST individual from the previous population? But best is the
+#                 # last one?
+#                 nextgen = [self.population[-1]]
+#
+#                 # INTRODUCE NEW RANDOM INDIVIDUALS IN THE POPULATION
+#                 if self.roll_introduction():
+#                     test = self.generate_single_test()
+#                     if self.is_new(test):
+#                         l.info('Introducing random new test.')
+#                         nextgen.append(test)
+#                         yield ('introduce', test)
+#
+#                 # SELECT INDIVIDUALS
+#                 l.debug('Selecting mates for crossover.')
+#                 l.debug('Using selector: %s', str(type(self.selector)))
+#                 pairs = list()
+#                 total_pairs = len(self.population) + len(self.population)
+#                 attempts = 0
+#
+#                 # PATCH TO ENABLE 1+1EA
+#                 #   pop has 1 individual, we mutate it (always), and select the best between original and mutation
+#                 if self.max_pop == 1:
+#                     l.info("1+1 EA")
+#                     resident = self.population[0]
+#                     mutated, aux = self.mutate(resident)
+#                     # Mutation might go wrong
+#                     if mutated:
+#                         if self.is_new(mutated):
+#                             # TODO Not sure we actually need test_file
+#                             test_file = c.rg.get_plots_path()
+#                             test_file = os.path.join(test_file, 'test_{:06}.png'.format(mutated.test_id))
+#                             yield ('mutated', (resident, mutated, aux))
+#
+#                             # At this point we add this into nextGen and move on to the evaluation part
+#                             nextgen.append(mutated)
+#                         else:
+#                             l.warning("Mutated individual %s is NOT considered new/novel", mutated.test_id)
+#                     else:
+#                         l.info("Invalid mutation %s", aux)
+#                 else:
+#                     # This works Only if there are more than 1? INDIVIDUALS
+#                     while len(nextgen) < self.max_pop and len(pairs) < total_pairs and attempts <= total_pairs:
+#                         attempts += 1
+#                         mom = self.selector.select(self.population)
+#                         l.debug('Selected mom: %s', str(mom))
+#                         dad = self.selector.select(self.population, ignore={mom})
+#                         l.debug('Selected dad: %s', str(dad))
+#
+#                         pair_id = '{}x{}'.format(mom.test_id, dad.test_id)
+#                         pair_id2 = '{}x{}'.format(dad.test_id, mom.test_id)
+#                         if pair_id in pairs:
+#                             continue
+#                         if pair_id2 in pairs:
+#                             continue
+#
+#                         pairs.append(pair_id)
+#                         pairs.append(pair_id2)
+#
+#                         if mom == dad:
+#                             continue
+#
+#                         # CROSSOVER
+#                         children, aux = self.crossover(mom, dad)
+#                         if children:
+#                             l.debug('Produced %s children from %s x %s crossover', len(children), str(mom), str(dad))
+#
+#                             l.debug('Mutating children.')
+#                             mutations = []
+#                             for child in children:
+#                                 if self.is_new(child):
+#                                     if self.roll_mutation(child):
+#                                         mutated, aux = self.mutate(child)
+#                                         if mutated:
+#                                             if self.is_new(mutated):
+#                                                 mutations.append(mutated)
+#                                                 test_file = c.rg.get_plots_path()
+#                                                 test_file = os.path.join(test_file, 'test_{:06}.png'.format(mutated.test_id))
+#                                                 #plot_test(test_file, mutated)
+#                                                 yield ('mutated', (child, mutated, aux))
+#                                         else:
+#                                             mutations.append(child)
+#                                             yield ('crossedover', (mom, dad, children, aux))
+#                                             test_file = c.rg.get_plots_path()
+#                                             test_file = os.path.join(test_file, 'test_{:06}.png'.format(child.test_id))
+#                                             #plot_test(test_file, child)
+#                                     else:
+#                                         mutations.append(child)
+#                                         yield ('crossedover', (mom, dad, children, aux))
+#                                         test_file = c.rg.get_plots_path()
+#                                         test_file = os.path.join(test_file, 'test_{:06}.png'.format(child.test_id))
+#                                         #plot_test(test_file, child)
+#
+#                             for child in mutations:
+#                                 if len(nextgen) < self.max_pop:
+#                                     nextgen.append(child)
+#
+#             # ELITISM: PAD NEW GENERATION WITH BEST INDIVIDUALS
+#             while len(nextgen) < self.max_pop:
+#                 elite = self.population[-1]
+#                 del self.population[-1]
+#                 if elite not in nextgen:
+#                     nextgen.append(elite)
+#
+#             # EVALUATION of the new population (requires to set self.population) unless search must be restarted
+#             # Note that nextgen ALWAYS contains the BEST individual of the current population
+#             self.population = nextgen
+#             self.step += 1
+#             total_evol_time += self.end_evol_clock()
+#
+#             # This executes ALL the tests in one shot
+#             for execution in self.run_suite():
+#                 # Has the execution reached its final goal?
+#                 if self.search_stopper.stopping_condition_met(execution):
+#                     l.info("Search achieved its goal. Restart the search...")
+#                     restart_search = True
+#                     yield ('goal_achieved', (execution, self.population))
+#                     break
+#
+#                 # Is the time limit reached?
+#                 if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+#                     l.info("Enforcing time limit %d after initial generation", time_limit)
+#                     # Notify the "caller" about ending the generation.
+#                     yield ('time_limit_reached', (self.population))
+#                     # We need to evaluate whatever tests we did created
+#                     break
+#
+#             # if not restart_search:
+#             if True:
+#                 l.info("Evaluating test suite after evolution step.")
+#                 l.debug('Using evaluator: %s', str(type(self.evaluator)))
+#
+#                 evaluation = self.evaluator.evaluate_suite(self.population)
+#                 total_eval_time += evaluation.duration
+#
+#                 if time_limit > 0 and self.get_wall_time_clock() >= time_limit:
+#                     return
+#
+#                 # AT THIS POINT WE CAN COMPARE OLD AND NEW TO DECIDE WHICH INDIVIDUALS TO KEEP AROUND - This will be
+#                 # overwritten by restart_search
+#                 if self.max_pop == 1:
+#                     # At this point we have a population made of at most 2 individuals, and we pick the one which has
+#                     # the higher score. Note that using LaneDist once we get an obe score goes to 1, no matter how many
+#                     # OBEs the test caused.
+#                     # If we keep the original one, we might end up in trying out all the mutations cyclically, while if we
+#                     # select always the new one, we are piling up mutations. A third option, would be to keep the test
+#                     # which achieved the most OBEs... Which eventually results in mutating the best one over and over...
+#                     #
+#                     # Hence I decide to keep the new ones to favor the exploration no matter the number of OBEs.
+#                     l.info("1+1EA: selecting best individual between %s", ', '.join(['--'.join([str(test.test_id), str(test.score)]) for test in self.population]))
+#                     # Ensures that only one element survives
+#                     self.population = sorted(self.population, key=lambda t: t.score, reverse=True)[0:1]
+#                     l.info("1+1EA: Best individual is %s", self.population[-1].test_id)
+#
+#                 l.debug("Total Eval Time %s", str(total_eval_time))
+#                 l.debug("Total Evol Time %s", str(total_evol_time))
+#
+#                 if evaluation.result == TestSuiteEvaluation.RESULT_TIMEOUT:
+#                     yield ('timeout', (self.population, evaluation, total_evol_time, total_eval_time))
+#                 else:
+#                     yield ('finish_evolution', self.population)
