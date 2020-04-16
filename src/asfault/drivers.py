@@ -1,19 +1,18 @@
 #
 # Compute a path given the shape of the road and uses beamNGpy set Script
 #
-from beamngpy import BeamNGpy, Vehicle, setup_logging
+from beamngpy import BeamNGpy, Vehicle
 from beamngpy.sensors import Electrics
 
 from shapely.geometry import Point, LineString
 import matplotlib.pyplot as plt
-
-    12efrom asfault.network import NetworkNode, TYPE_L_TURN, TYPE_R_TURN, TYPE_STRAIGHT
 
 import numpy as np
 
 import logging as l
 
 import math
+from time import sleep
 
 
 def pairs(lst):
@@ -691,31 +690,14 @@ class Driver:
 
     road_profiler = None
 
-    def __init__(self, speed_limit):
-        self.vehicle = Vehicle('egovehicle')
-        electrics = Electrics()
-        self.vehicle.attach_sensor('electrics', electrics)
+    car_model = None
+    road_model = None
 
-        # Connect to running beamng
-        beamng = BeamNGpy('localhost', 64256, home='C://Users//Alessio//BeamNG.research_unlimited//trunk')
-        self.bng = beamng.open(launch=False)
-        self.bng.set_deterministic()  # Set simulator to be deterministic
-        # self.bng.set_steps_per_second(self.MAX_FPS)  # With 60hz temporal resolution
-        # Connect to the existing vehicle (identified by the ID set in the vehicle instance)
-        self.bng.connect_vehicle(self.vehicle)
-        self.vehicle.ai_set_mode("disabled")
-        # Put simulator in pause awaiting further inputs
-        self.bng.pause()
-
-        assert self.vehicle.skt
-
-        self.car_model = dict()
-        # Empirically estimated from ETK800/BeamNG
-        self.car_model['max_acc'] = 3.5
-        self.car_model['max_dec'] = -0.5 # instead of -6.3 ?
-        mu = 0.2 # 0.3 # 0.5 #0.8
-        # Speed limit must be m/s
-        self.road_profiler = RoadProfiler(mu, speed_limit / 3.6)
+    def __init__(self, car_model: dict, road_model: dict):
+        self.car_model = car_model
+        self.road_model = road_model
+        # Note: Speed limit must be m/s
+        self.road_profiler = RoadProfiler(road_model['mu'], road_model['speed_limit']/ 3.6)
 
     def _compute_driving_path(self, car_state, road_name):
         road_geometry = self.bng.get_road_edges(road_name)
@@ -745,11 +727,18 @@ class Driver:
 
         # If the car is closest to the left, then we need to switch the direction of the road...
         if current_position.distance(projection_point_on_right) > current_position.distance(projection_point_on_left):
+            # Swap the axis and recompute the projection points
             print("Reverse traffic direction")
             temp = self.right_edge
-            right_edge = self.left_edge
-            left_edge = temp
+            self.right_edge = self.left_edge
+            self.left_edge = temp
             del temp
+
+            projection_point_on_right = nearest_points(self.right_edge, current_position)[0]
+            projection_point_on_left = nearest_points(self.left_edge, current_position)[0]
+
+
+
 
         # Traffic direction is always 90-deg counter clockwise from right
         # Now rotate right point 90-deg counter clockwise from left and we obtain the traffic direction
@@ -765,7 +754,10 @@ class Driver:
 
         start_point = None
         for pair in pairs(list(self.right_edge.coords[:])):
-            if LineString([pair[0], pair[1]]).distance(projection_point_on_right) < 1.8e-5:
+            segment = LineString([pair[0], pair[1]])
+            xs, ys = segment.coords.xy
+            plt.plot(xs, ys, color='green')
+            if segment.distance(projection_point_on_right) < 1.8e-5:
                 road_direction = np.array([pair[1][0] - pair[0][0], pair[1][1] - pair[0][1]])
                 if dot(traffic_direction, road_direction) < 0:
                     print("Reverse order !")
@@ -851,58 +843,48 @@ class Driver:
         plt.draw()
         plt.pause(0.01)
 
-    def run(self):
-        # We assume a single road, with one lane per traffic directoin
-        # We assume the car is spawn on the right lane of the road
+    def run(self, debug=False):
         try:
+            self.vehicle = Vehicle(car_model['id'])
+            electrics = Electrics()
+            self.vehicle.attach_sensor('electrics', electrics)
+
+            # Connect to running beamng
+            self.bng = BeamNGpy('localhost', 64256) #, home='C://Users//Alessio//BeamNG.research_unlimited//trunk')
+            self.bng = self.bng.open(launch=False)
+
+            # Put simulator in pause awaiting while planning the driving
+            self.bng.pause()
+            # Connect to the existing vehicle (identified by the ID set in the vehicle instance)
+            self.bng.set_deterministic()  # Set simulator to be deterministic
+            self.bng.connect_vehicle(self.vehicle)
+            assert self.vehicle.skt
+
+            # Get Initial state of the car. This assumes that the script is invoked after the scenario is started
             self.bng.poll_sensors(self.vehicle)
-            self._compute_driving_path(self.vehicle.state, 'street_1')
-
-            driving_path_as_line_string = LineString(self.driving_path)
-
-            self.script = self.road_profiler.compute_ai_script(driving_path_as_line_string, self.car_model)
-
+            # Compute the "optimal" driving path and program the ai_script
+            self._compute_driving_path(self.vehicle.state, self.road_model['street'])
+            self.script = self.road_profiler.compute_ai_script(LineString(self.driving_path), self.car_model)
+            # Configure the ego car
             self.vehicle.ai_set_mode('disabled')
             self.vehicle.ai_set_script(self.script)
-            # self.plot_all(self.vehicle.state)
+            # Resume the simulation
+            self.bng.resume()
+            # At this point the controller can stop ? or wait till it is killed
 
             while True:
-                self.bng.poll_sensors(self.vehicle)
-                self.plot_all(self.vehicle.state)
-                self.bng.step(50)
-                pass
-            # Plot the path...
-            # Start the car...
+                if debug:
+                    self.bng.pause()
+                    self.bng.poll_sensors(self.vehicle)
+                    self.plot_all(self.vehicle.state)
+                    self.bng.resume()
+                # Progress the simulation for some time...
+                # self.bng.step(50)
+                sleep(2)
 
-            # # Compute "optimal" path
-            # # This is basically the center line of the lane plus
-            # while True:
-            #     # Resume the execution
-            #     self.bng.step(self.SIMULATION_STEP)
-            #
-            #     # Retrieve vehicle state and sensors
-            #     self.bng.poll_sensors(self.vehicle)
-            #
-            #     # Compute indicators (either with AI or via BEAMNG)
-            #     indicators = self.labeler.compute_indicators(self.vehicle.state)
-            #
-            #     # print("ANGLE = ", indicators.Angle, math.degrees(indicators.Angle))
-            #
-            #     # Our controller is designe for ETK800 in BeamNG and does not require adjustment
-            #     control = self.controller.control(indicators)
-            #
-            #     # control['throttle'] = clamp(rControl['throttle'], 0.0, 1.0)
-            #     # control['braking'] = clamp(rControl['braking'], 0.0, 1.0)
-            #
-            #     # print("Suggested Driving Actions: ")
-            #     print(" Steer: ", "LEFT" if control['steering'] < 0 else "RIGHT", math.fabs(control['steering']))
-            #     print(" Accel: ", control['throttle'])
-            #     print(" Brake: ", control['braking'])
-            #
-            #
-            #     # Apply commands
-            #     self.vehicle.control(steering=control['steering'], throttle=control['throttle'], brake=control['braking'])
-
+        except:
+            # When we brutally kill this process there's no need to log an exception
+            pass
         finally:
             self.bng.close()
 
@@ -927,7 +909,24 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--max-speed', type=int, default=90, help='Speed Limit in KM/H')
+    parser.add_argument('--debug', action='store_true', help='Show debug information')
     args = parser.parse_args()
+
+    # TODO Optionally provide car and road models
     print("Setting max speed to", args.max_speed)
-    driver = Driver(args.max_speed)
-    driver.run()
+    print("Debug : ", args.debug)
+
+    car_model = dict()
+    # Empirically estimated from ETK800/BeamNG
+    car_model['max_acc'] = 3.5   # Not m/s**2
+    car_model['max_dec'] = -0.5  # Not m/s**2
+    car_model['id'] = 'egovehicle'
+
+    road_model = dict()
+    # Friction coefficient
+    road_model['mu'] = 0.2  # Slippery road 0.3 # 0.5 # 0.8 Normal road
+    road_model['speed_limit'] = args.max_speed
+    road_model['street'] = 'street_1'
+
+    driver = Driver(car_model, road_model)
+    driver.run(debug=args.debug)

@@ -616,6 +616,9 @@ class TestRunner:
         self.ctrl = ctrl
         self.ctrl_process = None
 
+        # Control whether use runtime monitoring
+        self.rv_enabled = False
+
         if plot:
             self.tracer = CarTracer('Trace: {}'.format(self.test.test_id),
                                     self.test.network.bounds)
@@ -696,6 +699,10 @@ class TestRunner:
         self.race_started = True
         if self.ctrl:
             self.start_controller()
+
+        self.race_started_time = datetime.datetime.now()
+        self.rv_enabled = False
+
         return None, None
 
     def check_min_speed(self, state):
@@ -711,6 +718,22 @@ class TestRunner:
         return False
 
     def state_handler(self, param):
+        # Ensures
+        # Initial delay before we start checking for off_road conditions
+        # TODO Probably AsFault should place the cars inside the roads already?
+        elapsed_time = datetime.datetime.now() - self.race_started_time
+
+        # TODO Using a timeout is not reliable, but state checker is somehow broken... off track is false at the beginnig
+        # then it becomes true, then false again...
+
+        if elapsed_time.total_seconds() > 8.0 and not self.rv_enabled:
+            l.info("Enabling Runtime Verification after %s", elapsed_time.total_seconds())
+            self.rv_enabled = True
+
+        if not self.rv_enabled:
+            # Do not log any state at this point otherwise the score computation will be wrong...
+            return None, None
+
         data = param.split(';')
 
         if len(data) == 11:
@@ -731,7 +754,7 @@ class TestRunner:
 
             # Do not fail the test right after the OBE is observed but allow to specify some tolerance and bounded
             #    interval
-            if off_track:
+            if off_track and self.rv_enabled:
                 if not self.is_oob:
                     l.warning('New OBE Detected')
 
@@ -907,7 +930,9 @@ class TestRunner:
             result = RESULT_FAILURE
             reason = REASON_SOCKET_TIMED_OUT
 
+
         while not result:
+
             for line in self.read_lines():
                 split = line.find(':')
                 if split != -1:
