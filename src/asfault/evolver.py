@@ -348,11 +348,11 @@ class DeapTestGeneration:
         return ret.seconds
 
     def evolve_suite(self, generations, time_limit):
-        # TODO Check that 1+1EA is still possible
-        # TODO Check that RANDOM is still possible
-
         total_evaluation_time = 0
         total_evol_time = 0
+
+        if time_limit != math.inf:
+            l.info("Generation has %d seconds left", time_limit)
 
         # Start wall time clock to compute time limit
         self.start_wall_time_clock()
@@ -389,9 +389,11 @@ class DeapTestGeneration:
                 yield ('goal_achieved', (executed_test, self.population))
 
             if self.get_wall_time_clock() >= time_limit:
-                l.info("Enforcing time limit %d", time_limit)
+                l.info("Enforcing time limit")
                 # If we return at this point, the loop will not be executed
                 yield ('time_limit_reached', (self.population))
+            else:
+                l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
 
         l.debug('Entering main evolution loop: remaining generations {}.', generations)
         for _ in range(generations):
@@ -493,9 +495,11 @@ class DeapTestGeneration:
                     yield ('goal_achieved', (executed_test, self.population))
 
                 if self.get_wall_time_clock() >= time_limit:
-                    l.info("Enforcing time limit %d", time_limit)
+                    l.info("Enforcing time limit")
                     # Notify the "caller" about ending the generation.
                     yield ('time_limit_reached', (self.population))
+                else:
+                  l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
 
             # Combine the next_generation with the previous population
             self.toolbox.merge_populations(self.population, previous_population)
@@ -515,9 +519,11 @@ class DeapTestGeneration:
                     yield ('goal_achieved', (executed_test, self.population))
 
                 if self.get_wall_time_clock() >= time_limit:
-                    l.info("Enforcing time limit %d", time_limit)
+                    l.info("Enforcing time limit")
                     # Notify the "caller" about ending the generation.
                     yield ('time_limit_reached', (self.population))
+                else:
+                  l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
 
             # TODO What about test EXECUTION time?
             l.debug("Total Time Spent in Evaluating Tests {}", str(total_evaluation_time))

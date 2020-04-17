@@ -219,6 +219,8 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
     evo_step = 0
     elapsed_time = 0
 
+    start_time = datetime.datetime.now()
+
     plotter = None
     if show:
         plotter = EvolutionPlotter()
@@ -230,8 +232,11 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
     remaining_time = time_limit
     while True:
 
+        # This is a time difference object...
+        elapsed_time = datetime.datetime.now() - start_time
+
         remaining_budget -= generation
-        remaining_time -= elapsed_time
+        remaining_time -= elapsed_time.total_seconds()
 
         # Current generation
         generation = 0
@@ -241,7 +246,7 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
             return None
 
         # This is the search cycle. Every time it restarts we decrease the generation budget
-        for step, data in gen.evolve_suite(remaining_budget, time_limit=time_limit):
+        for step, data in gen.evolve_suite(remaining_budget, time_limit=remaining_time):
             evo_step += 1
 
             if plotter:

@@ -509,12 +509,14 @@ class RoadProfiler:
     G = 9.81
     _DISTANCE_STEP = 5  # Meters
 
-    def __init__(self, mu, speed_limit_meter_per_second):
+    def __init__(self, mu, speed_limit_meter_per_second, discretization_factor=10):
         """
         :param mu: Friction coefficient
         """
         self.FRICTION_COEFFICIENT = mu
         self.speed_limit_meter_per_second = speed_limit_meter_per_second
+        # Decide how fine grained the control his. Smaller values results in better controls but higher computational costs
+        self.discretization_factor = discretization_factor
 
     def _compute_max_speed(self, radius: float):
         max_speed = self.speed_limit_meter_per_second
@@ -629,7 +631,8 @@ class RoadProfiler:
         input_road = self._build_road_object(driving_path)
 
         # Locations is a list of tuples (distance, Point) computed from driving path every 10 meters
-        locations = input_road.discretize(10) # meter
+        # with 10 meter for discretization the driver cuts sharp turns
+        locations = input_road.discretize(self.discretization_factor)
 
         # Return the "actual" speed that the car can reach given its acc/dec
         max_achievable_speed = input_road._compute_max_achievable_speed(car_model['max_acc'], car_model['max_dec'],
@@ -693,11 +696,13 @@ class Driver:
     car_model = None
     road_model = None
 
-    def __init__(self, car_model: dict, road_model: dict):
+    def __init__(self, car_model: dict, road_model: dict, control_model: dict):
         self.car_model = car_model
         self.road_model = road_model
+        self.control_model = control_model
+
         # Note: Speed limit must be m/s
-        self.road_profiler = RoadProfiler(road_model['mu'], road_model['speed_limit']/ 3.6)
+        self.road_profiler = RoadProfiler(road_model['mu'], road_model['speed_limit']/ 3.6, control_model['discretization_factor'])
 
     def _compute_driving_path(self, car_state, road_name):
         road_geometry = self.bng.get_road_edges(road_name)
@@ -928,5 +933,9 @@ if __name__ == '__main__':
     road_model['speed_limit'] = args.max_speed
     road_model['street'] = 'street_1'
 
-    driver = Driver(car_model, road_model)
+    control_model = dict()
+    # 10 tends to cut sharp curve, 5 might be too conservative
+    control_model['discretization_factor'] = 20
+
+    driver = Driver(car_model, road_model, control_model)
     driver.run(debug=args.debug)
