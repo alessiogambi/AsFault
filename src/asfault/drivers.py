@@ -8,11 +8,22 @@ from shapely.geometry import Point, LineString
 import matplotlib.pyplot as plt
 
 import numpy as np
-
+import sys
 import logging as l
 
 import math
 from time import sleep
+
+
+def log_exception(extype, value, trace):
+    l.exception('Uncaught exception:', exc_info=(extype, value, trace))
+
+
+def setup_logging(log_file):
+    term_handler = l.StreamHandler()
+    l.basicConfig(format='Driver AI: %(asctime)s %(levelname)-8s %(message)s',
+                  level=l.INFO, handlers=[term_handler])
+    sys.excepthook = log_exception
 
 
 def pairs(lst):
@@ -600,7 +611,7 @@ class RoadProfiler:
                 color = 'red' if color == 'green' else 'green'
 
             previous_distance = d
-            plt.plot([A.x, B.x], [A.y, B.y], marker="o", color=color)
+            # plt.plot([A.x, B.x], [A.y, B.y], marker="o", color=color)
 
         input_road_segments = list()
         for road_segment in segments:
@@ -733,7 +744,7 @@ class Driver:
         # If the car is closest to the left, then we need to switch the direction of the road...
         if current_position.distance(projection_point_on_right) > current_position.distance(projection_point_on_left):
             # Swap the axis and recompute the projection points
-            print("Reverse traffic direction")
+            l.debug("Reverse traffic direction")
             temp = self.right_edge
             self.right_edge = self.left_edge
             self.left_edge = temp
@@ -760,17 +771,17 @@ class Driver:
         start_point = None
         for pair in pairs(list(self.right_edge.coords[:])):
             segment = LineString([pair[0], pair[1]])
-            xs, ys = segment.coords.xy
-            plt.plot(xs, ys, color='green')
+            # xs, ys = segment.coords.xy
+            # plt.plot(xs, ys, color='green')
             if segment.distance(projection_point_on_right) < 1.8e-5:
                 road_direction = np.array([pair[1][0] - pair[0][0], pair[1][1] - pair[0][1]])
                 if dot(traffic_direction, road_direction) < 0:
-                    print("Reverse order !")
+                    l.debug("Reverse order !")
                     self.right_edge = LineString([Point(p[0], p[1]) for p in self.right_edge.coords[::-1]])
                     start_point = Point(pair[0][0], pair[0][1])
                     break
                 else:
-                    print("Original order !")
+                    l.debug("Original order !")
                     start_point = Point(pair[1][0], pair[1][1])
                     break
 
@@ -778,7 +789,7 @@ class Driver:
 
         # At this point compute the driving path of the car (x, y, t)
         self.driving_path = [current_position]
-        plt.plot(current_position.x, current_position.y, color='black', marker="x")
+        # plt.plot(current_position.x, current_position.y, color='black', marker="x")
         # # This might not be robust we need to get somethign close by
         # plt.plot([pair[0][0], pair[1][0]], [pair[0][1], pair[1][1]], marker="o")
         # plt.plot(projection_point_on_right.x, projection_point_on_right.y, color='b', marker="*")
@@ -869,10 +880,17 @@ class Driver:
             self.bng.poll_sensors(self.vehicle)
             # Compute the "optimal" driving path and program the ai_script
             self._compute_driving_path(self.vehicle.state, self.road_model['street'])
+
             self.script = self.road_profiler.compute_ai_script(LineString(self.driving_path), self.car_model)
+
+            # Enforce initial car direction nad up
+            start_dir = (self.vehicle.state['dir'][0], self.vehicle.state['dir'][1], self.vehicle.state['dir'][2])
+            up_dir = (0, 0, 1)
+
             # Configure the ego car
             self.vehicle.ai_set_mode('disabled')
-            self.vehicle.ai_set_script(self.script)
+            # Note that set script teleports the car by default
+            self.vehicle.ai_set_script(self.script, start_dir=start_dir, up_dir=up_dir)
             # Resume the simulation
             self.bng.resume()
             # At this point the controller can stop ? or wait till it is killed
@@ -887,9 +905,9 @@ class Driver:
                 # self.bng.step(50)
                 sleep(2)
 
-        except:
+        except Exception:
             # When we brutally kill this process there's no need to log an exception
-            pass
+            l.error("Fatal Error", exc_info=True)
         finally:
             self.bng.close()
 
@@ -917,9 +935,10 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true', help='Show debug information')
     args = parser.parse_args()
 
+    setup_logging()
+
     # TODO Optionally provide car and road models
-    print("Setting max speed to", args.max_speed)
-    print("Debug : ", args.debug)
+    l.debug("Setting max speed to", args.max_speed)
 
     car_model = dict()
     # Empirically estimated from ETK800/BeamNG
@@ -935,7 +954,7 @@ if __name__ == '__main__':
 
     control_model = dict()
     # 10 tends to cut sharp curve, 5 might be too conservative
-    control_model['discretization_factor'] = 20
+    control_model['discretization_factor'] = 8
 
     driver = Driver(car_model, road_model, control_model)
     driver.run(debug=args.debug)

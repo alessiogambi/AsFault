@@ -118,94 +118,6 @@ def dump_population(evo_step, generation, population, exported_tests_gen, export
             export_test_exec(plots_dir, execs_dir, test, render)
             exported_tests_exec.add(test.test_id)
 
-@DeprecationWarning
-def run_experiment(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=True, show=False):
-    plots_dir = c.rg.get_plots_path()
-
-    exported_tests_gen = set()
-    exported_tests_exec = set()
-
-    gen = TestSuiteGenerator(rng, evaluator, selector, estimator, search_stopper, factory,
-                         sort_pop=sort_pop, cutoff=2 ** 64)
-
-    if c.ev.attempt_repair:
-        l.info("REPAIR: Enabled")
-        gen.joiner = RepairJoin(rng, c.ev.bounds)
-    else:
-        l.info("REPAIR: Disabled")
-
-    gen.random_exp = random_exp
-
-    generation = 0
-    evo_step = 0
-
-    plotter = None
-    if show:
-        plotter = EvolutionPlotter()
-        plotter.start()
-
-    # data contains the current population of tests.
-    for step, data in gen.evolve_suite(budget, time_limit=time_limit):
-        evo_step += 1
-        evo = list()
-
-        if plotter:
-            updated = plotter.update((step, data))
-            if updated:
-                plotter.pause()
-                if render:
-                    out_file = 'step_{:09}_{}.png'.format(evo_step, step)
-                    out_file = os.path.join(plots_dir, out_file)
-                    save_plot(out_file, dpi=c.pt.dpi_intermediate)
-
-        if step == 'time_limit_reached':
-            l.warning("Enforcing the time limit. Stopping the search")
-            population = data
-            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-
-
-        if step == 'goal_achieved':
-            l.warning("GOAL ACHIEVED !!!")
-            execution, population = data
-            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-
-            # Reset the generation counter
-            generation = 0
-
-        if step == 'finish_generation' or step == 'looped':
-            # Dump the population to log file
-            l.warning("GENERATION %s: %s", "{:03d}".format(generation), ", ".join([str(test.test_id) for test in data]))
-            population = data
-            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-
-        if step == 'finish_evolution':
-            l.warning("FINAL TEST SUITE: %s", ", ".join([str(test.test_id) for test in data]))
-            final_path = c.rg.get_final_path()
-            population = data
-            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-
-        if step == 'evaluated':
-
-            population, evaluation, total_evol, total_eval = data
-
-            dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-
-            fitness = evaluation.score
-            oob = evaluation.oob
-            timeouts = evaluation.timeouts
-            diversity = evaluation.coverage
-            min_test = get_worst_test(population).test_id
-            max_test = get_best_test(population).test_id
-
-            evo.extend([generation, fitness, oob, timeouts,
-                        diversity, min_test, max_test])
-            evo.extend([total_evol, evaluation.total_coverage])
-
-            # This should be incremented after the execution not before...
-            generation += 1
-
-            yield evo
-
 
 def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=True, show=False):
     plots_dir = c.rg.get_plots_path()
@@ -259,34 +171,32 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
                         save_plot(out_file, dpi=c.pt.dpi_intermediate)
 
             if step == 'time_limit_reached':
-                l.warning("Enforcing the time limit. Stopping the search")
+                l.info("Enforcing time limit. Stopping the search")
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
                 return None
 
             if step == 'budget_limit_reached':
-                l.warning("Enforcing the budget limit. Stopping the search")
+                l.info("Enforcing generation limit. Stopping the search")
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
                 return None
 
             if step == 'goal_achieved':
-                l.warning("GOAL ACHIEVED")
+                l.info("Search goal achieved")
                 _, population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
 
                 if c.ev.restart_search:
-                    l.warning("RESTART THE SEARCH")
-                    # Exit the search loop and restart the search
-                    # TODO Maybe we need to yield something back?
+                    l.warning("Restart the search")
                     break
                 else:
-                    l.warning("SEARCH FINISHED: %s", ", ".join([str(test.test_id) for test in data]))
+                    l.warning("Search is over")
                     return None
 
             # The test generation stage is over, evaluation is soon to begin
             if step == 'finish_generation':
-                l.warning("Done test generation %s: %s", "{:03d}".format(generation), ", ".join([str(test.test_id) for test in data]))
+                l.info("Done generating tests for generation %s: %s", "{:03d}".format(generation), ", ".join([str(test.test_id) for test in data]))
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
                 generation += 1
@@ -324,23 +234,6 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
                 evo.extend([total_evol, evaluation.total_coverage])
                 # This should be incremented after the execution not before...
                 yield evo
-
-@DeprecationWarning
-def experiment_out(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget, time_limit=-1, random_exp=False, render=False, show=False):
-    out_file = c.rg.get_results_path()
-    with open(out_file, 'w'):
-        pass
-    for evolution in run_experiment(rng, evaluator, selector, estimator, search_stopper, factory, sort_pop, budget,
-                                    time_limit=time_limit,  random_exp=random_exp, render=render, show=show):
-        out_file = c.rg.get_results_path()
-        now_time = datetime.datetime.now()
-        now_time = now_time.isoformat()
-        prefix = [now_time, c.ev.evaluator, c.ev.bounds, c.ex.risk]
-        evolution = prefix + evolution
-        with open(out_file, 'a') as out:
-            writer = csv.writer(out, delimiter=';',
-                                quoting=csv.QUOTE_NONNUMERIC)
-            writer.writerow(evolution)
 
 
 from deap import base, creator, tools

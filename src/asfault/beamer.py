@@ -670,7 +670,7 @@ class TestRunner:
             lua += ";registerCoreModule('util/researchGE')"
         userpath = c.ex.get_user_dir()
         call = [BEAMNG_BINARY, '-userpath', userpath, '-lua', lua, '-console']
-        l.info('Calling BeamNG: %s', call)
+        l.debug('Calling BeamNG: %s', call)
         self.process = subprocess.Popen(call)
 
     def kill_beamng(self):
@@ -878,11 +878,11 @@ class TestRunner:
         return ret
 
     def start_controller(self):
-        l.info('Calling controller process: %s', self.ctrl)
+        l.debug('Calling controller process: %s', self.ctrl)
         self.ctrl_process = subprocess.Popen(self.ctrl)
 
     def kill_controller(self):
-        l.info('Terminating controller process.')
+        l.debug('Terminating controller process.')
         if self.ctrl_process:
             self.kill_process(self.ctrl_process)
         self.ctrl_process = None

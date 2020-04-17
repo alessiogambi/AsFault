@@ -515,7 +515,7 @@ class RoadTest:
             goal_proj = self.path_line.interpolate(goal_proj, normalized=True)
             self.path_line, _ = split(self.path_line, goal_proj)
 
-            l.info('Computed path polyline for test: %s', str(self))
+            l.debug('Computed path polyline for test: %s', str(self))
 
         return self.path_line
 
