@@ -19,6 +19,12 @@ from asfault.plotter import CarTracer
 from asfault.tests import *
 from shapely.geometry import box
 
+# Required to force BeamNGpy to reopen the socket once the process is done
+from multiprocessing import Process
+
+from beamngpy import BeamNGpy, Scenario
+
+
 SCENARIOS_DIR = 'scenarios'
 
 PREFAB_FILE = 'asfault.prefab'
@@ -555,12 +561,17 @@ def generate_test_lua(test, **options):
 
 def write_scenario_prefab(test_dir, test):
     scenarios_dir = get_scenarios_dir(test_dir)
-    prefab_file = os.path.join(scenarios_dir, PREFAB_FILE)
+    prefab_file = os.path.join(scenarios_dir, ''.join(["asfault", str(test.test_id), ".prefab"]))
     prefab = generate_test_prefab(test)
     with open(prefab_file, 'w') as out:
         out.write(prefab)
     return prefab_file
 
+
+def delete_scenario_prefab(test_dir, test):
+    scenarios_dir = get_scenarios_dir(test_dir)
+    prefab_file = os.path.join(scenarios_dir, ''.join(["asfault", str(test.test_id), ".prefab"]))
+    os.remove(prefab_file)
 
 def write_scenario_empty_prefab(test_dir):
     network = NetworkLayout(None)
@@ -568,39 +579,77 @@ def write_scenario_empty_prefab(test_dir):
     return write_scenario_prefab(test_dir, test)
 
 
-def write_scenario_description(test_dir, prefab):
+def write_scenario_description(test_dir, test, prefab):
     scenarios_dir = get_scenarios_dir(test_dir)
     if not os.path.exists(scenarios_dir):
         os.makedirs(scenarios_dir)
-    description_file = os.path.join(scenarios_dir, DESCRIPTION_FILE)
+    # description_file = os.path.join(scenarios_dir, DESCRIPTION_FILE)
+    description_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.json']))
     description = generate_test_description(prefab)
     with open(description_file, 'w') as out:
         out.write(description)
     return description_file
 
+def delete_scenario_description(test_dir, test):
+    scenarios_dir = get_scenarios_dir(test_dir)
+    description_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.json']))
+    os.remove(description_file)
 
 def write_scenario_lua(test_dir, test, **options):
     scenarios_dir = get_scenarios_dir(test_dir)
-    lua_file = os.path.join(scenarios_dir, LUA_FILE)
+    # lua_file = os.path.join(scenarios_dir, LUA_FILE)
+    lua_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.lua']))
     lua = generate_test_lua(test, **options)
     with open(lua_file, 'w') as out:
         out.write(lua)
     return lua_file
 
+def delete_scenario_lua(test_dir, test, **options):
+    scenarios_dir = get_scenarios_dir(test_dir)
+    lua_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.lua']))
+    os.remove(lua_file)
+
+def start_default_controller():
+        """ Simply connect a BeamNGpy so the annoying reconnect goes away"""
+        beamng = BeamNGpy('localhost', 64256)
+        bng = beamng.open(launch=False)
+        # Note that we cannot call stop otherwise the annoyng message will not go away...
+        while True:
+            sleep(10)
+
+def load_scenario(scenario_level, scenario_name):
+    """Load a scenario into a running BeamNG"""
+    try:
+        beamng = BeamNGpy('localhost', 64256)
+        bng = beamng.open(launch=False)
+        scenario = Scenario(scenario_level, scenario_name)
+        scenario.bng = bng
+        scenario.find(bng)
+        bng.load_scenario(scenario)
+        sleep(10)
+        bng.start_scenario()
+    finally:
+        if bng:
+            bng.close()
 
 class TestRunner:
-    def __init__(self, test, test_dir, host, port, plot=False, ctrl=None):
+    def __init__(self, test, test_dir, host, port, beamng_process=None, plot=False, ctrl=None):
         self.test = test
         self.host = host
         self.port = port
         self.plot = plot
         self.test_dir = test_dir
 
+        # Ensure only one server is running to accept the client?
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((self.host, self.port))
         self.server.listen()
         self.client = None
-        self.process = None
+
+        # This identifies a running BeamNG
+        self.process = beamng_process
+        self.start_and_kill_beamng = self.process is None
+        l.info("Always Start and Kill BeamNG" if self.start_and_kill_beamng else "Share Running BeamNG")
 
         self.oobs = 0
         self.is_oob = False
@@ -629,7 +678,10 @@ class TestRunner:
         self.handlers = dict()
         self.handlers["HELLO"] = self.hello_handler
         self.handlers["STATE"] = self.state_handler
-        self.handlers["RACESTART"] = self.racestart_handler
+
+        # Prevent this handler to trigger ext control if we have a running instance of BeamNG. In that case we manually trigger it
+        if self.start_and_kill_beamng:
+            self.handlers["RACESTART"] = self.racestart_handler
 
         self.states = []
         self.start_time = None
@@ -650,7 +702,8 @@ class TestRunner:
             break
         return True
 
-    def kill_process(self, process):
+    @staticmethod
+    def kill_process(process):
         if process:
             if os.name == 'nt':
                 subprocess.call(
@@ -659,6 +712,16 @@ class TestRunner:
                 os.kill(process.pid, signal.SIGTERM)
             return True
         return False
+
+    @staticmethod
+    def start_shared_beamng(ctrl):
+        """Start a basic instance of beamng. We will load scenarios when running the experiments"""
+        # This enables the use of BeamNG.py, which means BNG will not run smoothly...
+        lua = "registerCoreModule('util/researchGE')"
+        userpath = c.ex.get_user_dir()
+        call = [BEAMNG_BINARY, '-userpath', userpath, '-lua', lua, '-console']
+        l.debug('Calling BeamNG: %s', call)
+        return subprocess.Popen(call)
 
     def start_beamng(self, scenario_file):
         scenario_file, _ = os.path.splitext(scenario_file)
@@ -675,7 +738,7 @@ class TestRunner:
 
     def kill_beamng(self):
         if self.process:
-            self.kill_process(self.process)
+            TestRunner.kill_process(self.process)
         self.process = None
         return True
 
@@ -700,8 +763,12 @@ class TestRunner:
             # Given enough time to asfault to move the car in the initial position while the controller plan the driving
             # TODO This is not really reliable, but I cannot find anything better...
             sleep(10)
+            l.info("Test Start")
+        else:
+            l.info("Starting Dummy Controller in a Separate Process")
+            self.dummy_controller = Process(target=start_default_controller, args=())
+            self.dummy_controller.start()
 
-        l.info("Test Start")
         return None, None
 
     def check_min_speed(self, state):
@@ -816,6 +883,8 @@ class TestRunner:
         distance = carstate.get_centre_distance()
         # TODO Why lane_width is under Evolution and not Execution configuration?
         if distance > c.ev.lane_width / 2.0:
+            l.info("Car is off track: distance %f", distance)
+
             # Car is off track
             if distance >= c.ev.lane_width / 2.0 + c.ev.tolerance:
                 return True
@@ -877,6 +946,7 @@ class TestRunner:
         ret = left.seconds <= 0
         return ret
 
+
     def start_controller(self):
         l.debug('Calling controller process: %s', self.ctrl)
         self.ctrl_process = subprocess.Popen(self.ctrl)
@@ -884,7 +954,14 @@ class TestRunner:
     def kill_controller(self):
         l.debug('Terminating controller process.')
         if self.ctrl_process:
-            self.kill_process(self.ctrl_process)
+            TestRunner.kill_process(self.ctrl_process)
+        else:
+            try:
+                if self.dummy_controller and self.dummy_controller.is_alive():
+                    self.dummy_controller.terminate()
+            except Exception as e:
+                l.error("Exception while terminating dummy controller")
+
         self.ctrl_process = None
 
     def run(self):
@@ -894,14 +971,28 @@ class TestRunner:
         prefab_file = write_scenario_prefab(self.test_dir, self.test)
         prefab_file = self.normalise_path(prefab_file)
 
-        scenario_file = write_scenario_description(self.test_dir, prefab_file)
+        scenario_file = write_scenario_description(self.test_dir, self.test, prefab_file)
         scenario_file = self.normalise_path(scenario_file)
 
         write_scenario_lua(self.test_dir, self.test, host=self.host,
                            port=self.port, time_left=self.get_time_left().seconds)
 
-        self.start_beamng(scenario_file)
+        if self.start_and_kill_beamng:
+            self.start_beamng(scenario_file)
+        else:
 
+            l.info("Loading scenario in a separate process")
+
+            p = Process(target=load_scenario, args=('asfault',''.join(['asfault', str(self.test.test_id)])))
+            p.start()
+            p.join()  # this blocks until the process terminates
+
+            # TODO I have no idea how this will play with BNG...
+
+            # After starting the scenario we can start the external process, which in turn will use its own BeamNGpy instance...
+            self.racestart_handler(None)
+
+        # At this point one way or another asfault.lua will be connected as client to self.server
         timeout = self.get_time_left().seconds
         accepted = self.accept_client(timeout=30)
 
@@ -914,7 +1005,6 @@ class TestRunner:
 
 
         while not result:
-
             for line in self.read_lines():
                 split = line.find(':')
                 if split != -1:
@@ -931,27 +1021,67 @@ class TestRunner:
                 result, reason = RESULT_FAILURE, REASON_TIMED_OUT
                 break
 
+        # At this point the scenario is finished
+
+        # Kill the external controller if one is running
+        self.kill_controller()
+
+        # Kill asfault.lua
         self.send_message('KILL:0')
         sleep(0.5)
-        self.kill_beamng()
+
+
+        if self.start_and_kill_beamng:
+            self.kill_beamng()
+
         self.end_time = datetime.datetime.now()
         execution = self.evaluate(result, reason)
         self.test.execution = execution
 
-        self.kill_controller()
-
         return execution
 
     def close(self):
+        l.debug("Closing Server")
         ## Not sure why this is not automatically called upon finishing the execution...
         self.server.close()
+        # TODO Add a flag to skip this step if we are running in debug...
+        # Make sure we clean up beamng scenario folders
+        self.clean_up_beamng_scenarios()
+
+    def clean_up_beamng_scenarios(self):
+        l.info("Clean up resources")
+
+        delete_scenario_prefab(self.test_dir, self.test)
+        delete_scenario_description(self.test_dir, self.test)
+        delete_scenario_lua(self.test_dir, self.test)
 
 
+BEAMNG_PROCESS = None
 def gen_beamng_runner_factory(level_dir, host, port, plot=False, ctrl=None):
+
+    # Start the shared instance of BeamNG
+    # TODO How to stop this?
+    global BEAMNG_PROCESS
+
+    # If we want to use BeamNG py we need to enable researchGE so BeamNG will try to connect over and over...
+    BEAMNG_PROCESS = TestRunner.start_shared_beamng(ctrl)
+
+    # This should ensure that BeamNG is actually started before we can instantiate the various runners...
+    sleep(20)
+
     def factory(test):
-        runner = TestRunner(test, level_dir, host, port, plot, ctrl=ctrl)
+        # Make sure that all the Test Runners will share the same instance of BeamNG. If the instance is null, each
+        # process will start its runner will start its own instance...
+        runner = TestRunner(test, level_dir, host, port, beamng_process=BEAMNG_PROCESS, plot=plot, ctrl=ctrl)
+
         return runner
     return factory
+
+
+def kill_beamng():
+    global BEAMNG_PROCESS
+    if BEAMNG_PROCESS:
+        TestRunner.kill_process(BEAMNG_PROCESS)
 
 
 def run_tests(tests, test_envs, plot=True):

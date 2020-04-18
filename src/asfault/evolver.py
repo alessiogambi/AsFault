@@ -293,9 +293,10 @@ class DeapTestGeneration:
         self.test_id = 1
         self.step = 0
 
-
     def run_test(self, test):
         while True:
+            # Test Runner is bound to the test. We need to configure the factory to return a new instance of a runner
+            # configured to use the available BeamNG
             runner = self.runner_factory(test)
             try:
                 execution = runner.run()

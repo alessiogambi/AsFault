@@ -84,21 +84,16 @@ def evolve(env, flush_output):
         config.rg.ensure_directories()
 
 
-@cli.group()
-@click.option('--env', type=click.Path(file_okay=False), default=DEFAULT_ENV)
-@click.option('--flush-output', is_flag=True)
-def replay(env, flush_output):
-    ensure_environment(env)
-    if flush_output:
-        output_dir = config.rg.get_output_path()
-        shutil.rmtree(output_dir)
-        config.rg.ensure_directories()
+@evolve.resultcallback()
+def kill_beamng_after_evolve(result, **kwargs):
+    kill_beamng()
+
 
 @evolve.command()
 @click.option('--seed', default=milliseconds())
 @click.option('--generations', default=10)
-@click.option('--render', is_flag=False)
-@click.option('--show', is_flag=False)
+@click.option('--render', is_flag=True)
+@click.option('--show', is_flag=True)
 @click.option('--time-limit', default=math.inf)
 def bng(seed, generations, render, show, time_limit):
     l.info('Starting BeamNG.AI with seed: {}'.format(seed))
@@ -114,8 +109,8 @@ def bng(seed, generations, render, show, time_limit):
 @evolve.command()
 @click.option('--seed', default=milliseconds())
 @click.option('--generations', default=10)
-@click.option('--render', is_flag=False)
-@click.option('--show', is_flag=False)
+@click.option('--render', is_flag=True)
+@click.option('--show', is_flag=True)
 @click.option('--time-limit', default=math.inf)
 @click.argument('ctrl')
 def ext(seed, generations, render, show, time_limit, ctrl):
@@ -136,96 +131,33 @@ def ext(seed, generations, render, show, time_limit, ctrl):
 @evolve.command()
 @click.option('--seed', default=milliseconds())
 @click.option('--generations', default=10)
-@click.option('--show', default=False)
-@click.option('--render', is_flag=False)
+@click.option('--show', is_flag=True)
+@click.option('--render', is_flag=True)
 @click.option('--time-limit', default=math.inf)
 def mock(seed, generations, show, render, time_limit):
-    # plots_dir = config.rg.get_plots_path()
-    # tests_dir = config.rg.get_tests_path()
-    #
-    # if show or render:
-    #     plotter = EvolutionPlotter()
-    #     if show:
-    #         plotter.start()
-    # else:
-    #     plotter = None
-    # rng = random.Random()
-    # rng.seed(seed)
     factory = gen_mock_runner_factory()
     experiments.deap_experiment(seed, generations, factory, time_limit=time_limit, render=render, show=show, )
 
-    # evaluator = StructureEvaluator()
-    # selector = TournamentSelector(rng, 2)
-    # estimator = LengthEstimator()
-    #
-    # gen = TestSuiteGenerator(rng, evaluator, selector, estimator, factory)
-    #
-    # if c.ev.attempt_repair:
-    #     l.info("(Mock) REPAIR: Enabled")
-    #     gen.joiner = RepairJoin(rng, c.ev.bounds)
-    # else:
-    #     l.info("(Mock) REPAIR: Disabled")
-    #
-    # step = 0
-    # for state in gen.evolve_suite(generations):
-    #     if plotter:
-    #         updated = plotter.update(state)
-    #         if updated:
-    #             if show:
-    #                 plotter.pause()
-    #             if render:
-    #                 out_file = '{:08}.png'.format(step)
-    #                 out_file = os.path.join(plots_dir, out_file)
-    #                 save_plot(out_file, dpi=c.pt.dpi_intermediate)
-    #                 step += 1
-    #
-    # suite = gen.population
-    #
-    # for test in suite:
-    #     test_file = os.path.join(tests_dir, '{0:08}.json'.format(test.test_id))
-    #     plot_file = os.path.join(plots_dir,
-    #                              'final_{0:08}.png'.format(test.test_id))
-    #
-    #     plotter = StandaloneTestPlotter('Test: {}'.format(test.test_id),
-    #                                     test.network.bounds)
-    #     plotter.plot_test(test)
-    #     save_plot(plot_file, dpi=c.pt.dpi_final)
-    #
-    #     test_dict = RoadTest.to_dict(test)
-    #     with open(test_file, 'w') as out:
-    #         out.write(json.dumps(test_dict, sort_keys=True, indent=4))
-    #     clear_plot()
-    #
-    # for test in suite:
-    #     continue
-    #     map_file = os.path.join(
-    #         plots_dir, 'map_{0:08}.png'.format(test.test_id))
-    #     generate_road_mask(test.network, map_file,
-    #                        buffer=4 * config.ev.lane_width)
-    #     noise_file = os.path.join(
-    #         plots_dir, 'noise_{0:08}.png'.format(test.test_id))
-    #     generate_noise_road_map(random.Random(), 2048,
-    #                             2048, 1024, 512, map_file, noise_file)
-    #
-    # out_dir = config.rg.get_output_path()
-    # out_file = os.path.join(out_dir, 'props.json')
-    # props = {'seed': seed}
-    # with open(out_file, 'w') as out:
-    #     out.write(json.dumps(props, sort_keys=True, indent=4))
 
+@cli.group()
+@click.option('--env', type=click.Path(file_okay=False), default=DEFAULT_ENV)
+@click.option('--flush-output', is_flag=True)
+def replay(env, flush_output):
+    ensure_environment(env)
+    if flush_output:
+        output_dir = config.rg.get_output_path()
+        shutil.rmtree(output_dir)
+        config.rg.ensure_directories()
 
-@replay.command()
-@click.option('--ext', default=None)
-@click.option('--show', is_flag=False)
-@click.option('--output', default=None)
-@click.argument('test-file', nargs=1)
-def run_test(ext, show, output, test_file):
-    _run_test(ext,  show, output, test_file)
+@replay.resultcallback()
+def kill_beamng_after_replay(result, **kwargs):
+    kill_beamng()
+
 
 # SHARED WITH run_tests
 # TODO Set a timeout to stop the test execution ?
 # TODO Check that input file exists
-def _run_test(ext, show, output, test_file):
+def _run_test(ext, show, output, test_file, factory):
     with open(test_file, 'r') as infile:
         test_dict = json.loads(infile.read())
     test = RoadTest.from_dict(test_dict)
@@ -235,12 +167,7 @@ def _run_test(ext, show, output, test_file):
         l.info("STRIP OFF PREVIOUS EXECUTION")
         del test.execution
 
-    out_dir = config.ex.get_level_dir()
-
-    host = config.ex.host
-    port = config.ex.port
-
-    runner = TestRunner(test, out_dir, host, port, plot=show, ctrl=ext)
+    runner = factory(test)
 
     if output is None:
         # Use the default folder
@@ -275,37 +202,58 @@ def _run_test(ext, show, output, test_file):
 
 @replay.command()
 @click.option('--ext', default=None)
-@click.option('--show', is_flag=False)
-@click.option('--output', default=os.path.curdir)
-@click.argument('test-files', nargs=-1, required=True, type=click.Path())
-def run_tests(ext, show, output, test_files):
-    for test_file in test_files:
-        _run_test(ext, show, output, test_file)
-
+@click.option('--show', is_flag=True)
+@click.option('--output', default=None)
+@click.argument('test-file', nargs=1)
+def run_test(ext, show, output, test_file):
+    # Use the factory? Not that makes much sense here...
+    factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ext)
+    _run_test(ext,  show, output, test_file, factory)
 
 @replay.command()
 @click.option('--ext', default=None)
-@click.option('--show', is_flag=False)
+@click.option('--show', is_flag=True)
+@click.option('--output', default=os.path.curdir)
+@click.argument('test-files', nargs=-1, required=True, type=click.Path())
+def run_tests(ext, show, output, test_files):
+    # Use the factory? Not that makes much sense here...
+    factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ext)
+
+    for test_file in test_files:
+        _run_test(ext, show, output, test_file, factory)
+
+@replay.command()
+@click.option('--ext', default=None)
+@click.option('--show', is_flag=True)
 @click.option('--output', default=None)
 def run_tests_from_env(ext, show, output):
     # Automatically take tests from the exec folder of the environment if it there
     if Path.is_dir(Path(c.rg.get_execs_path())):
+        # Use the factory? Not that makes much sense here...
+        factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show,
+                                            ctrl=ext)
+
         for test_file in _get_test_files_from_folder(c.rg.get_execs_path()):
             # Since tests contains previous executions, we need to string execution off that
-            _run_test(ext, show, output, test_file)
+            _run_test(ext, show, output, test_file, factory)
     else:
         l.error("This command requires an existing folder as input")
 
 
 @replay.command()
 @click.option('--ext', default=None)
-@click.option('--show', is_flag=False)
+@click.option('--show', is_flag=True)
 @click.option('--output', default=os.path.curdir)
 @click.argument('input_folder', nargs=1, required=True, type=click.Path())
 def run_tests_from_folder(ext, show, output, input_folder):
     if Path.is_dir(Path(input_folder)):
+        # Use the factory? Not that makes much sense here...
+        factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show,
+                                            ctrl=ext)
+
         for test_file in _get_test_files_from_folder(input_folder):
-            _run_test(ext, show, output, test_file)
+            _run_test(ext, show, output, test_file, factory)
+
     else:
         l.error("This command requires an existing folder as input")
 

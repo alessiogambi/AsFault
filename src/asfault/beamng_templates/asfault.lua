@@ -107,7 +107,9 @@ local function helloHandler(par)
 end
 
 local function killHandler(par)
-    TorqueScript.eval('quit();')
+    log('I', 'Stop scenario')
+    scenario_scenarios.stop()
+    --    TorqueScript.eval('quit();')
 end
 
 -- called when countdown finished

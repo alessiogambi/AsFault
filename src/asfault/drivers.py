@@ -19,7 +19,7 @@ def log_exception(extype, value, trace):
     l.exception('Uncaught exception:', exc_info=(extype, value, trace))
 
 
-def setup_logging(log_file):
+def setup_logging():
     term_handler = l.StreamHandler()
     l.basicConfig(format='Driver AI: %(asctime)s %(levelname)-8s %(message)s',
                   level=l.INFO, handlers=[term_handler])
