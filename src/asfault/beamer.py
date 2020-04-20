@@ -1057,6 +1057,7 @@ class TestRunner:
 
 
 BEAMNG_PROCESS = None
+
 def gen_beamng_runner_factory(level_dir, host, port, plot=False, ctrl=None):
 
     # Start the shared instance of BeamNG
@@ -1064,7 +1065,29 @@ def gen_beamng_runner_factory(level_dir, host, port, plot=False, ctrl=None):
     global BEAMNG_PROCESS
 
     # If we want to use BeamNG py we need to enable researchGE so BeamNG will try to connect over and over...
-    BEAMNG_PROCESS = TestRunner.start_shared_beamng(ctrl)
+    retry = 0
+    while True:
+
+        if retry >= 5:
+            raise Exception("Cannot start BeamNG. Giving up")
+
+        if retry > 0:
+            l.info("Wait 10 seconds before retry")
+            sleep(10)
+        try:
+            BEAMNG_PROCESS = TestRunner.start_shared_beamng(ctrl)
+            # Does this make any difference? Will BeamNG fail after some time or soon
+            sleep(5)
+            if BEAMNG_PROCESS.poll() is None:
+                # Process is running.
+                break
+            else:
+                l.error("BeamNG did not started. Retry")
+                retry += 1
+
+        except Exception as e:
+            l.error("Cannot start BeamNG", e)
+            retry += 1
 
     # This should ensure that BeamNG is actually started before we can instantiate the various runners...
     sleep(20)
