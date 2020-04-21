@@ -649,7 +649,7 @@ class TestRunner:
         # This identifies a running BeamNG
         self.process = beamng_process
         self.start_and_kill_beamng = self.process is None
-        l.info("Always Start and Kill BeamNG" if self.start_and_kill_beamng else "Share Running BeamNG")
+        l.debug("Always Start and Kill BeamNG" if self.start_and_kill_beamng else "Share Running BeamNG")
 
         self.oobs = 0
         self.is_oob = False
@@ -715,6 +715,7 @@ class TestRunner:
 
     @staticmethod
     def start_shared_beamng(ctrl):
+
         """Start a basic instance of beamng. We will load scenarios when running the experiments"""
         # This enables the use of BeamNG.py, which means BNG will not run smoothly...
         lua = "registerCoreModule('util/researchGE')"
@@ -763,9 +764,9 @@ class TestRunner:
             # Given enough time to asfault to move the car in the initial position while the controller plan the driving
             # TODO This is not really reliable, but I cannot find anything better...
             sleep(10)
-            l.info("Test Start")
+            l.debug("Test Start")
         else:
-            l.info("Starting Dummy Controller in a Separate Process")
+            l.debug("Starting Dummy Controller in a Separate Process")
             self.dummy_controller = Process(target=start_default_controller, args=())
             self.dummy_controller.start()
 
@@ -820,7 +821,7 @@ class TestRunner:
                         l.debug("Don't stop @ OBE enabled, keep going")
                         pass
                     elif self.observed_obe_states <= c.ex.observation_interval:
-                        l.info('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                        l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
                         self.observed_obe_states += 1
                     else:
                         l.info('Ending test due to vehicle going off track.')
@@ -831,7 +832,7 @@ class TestRunner:
                         l.debug("Don't stop @ OBE enabled, keep going")
                         pass
                     elif self.observed_obe_states <= c.ex.observation_interval:
-                        l.info('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                        l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
                         self.observed_obe_states += 1
                     else:
                         l.info('Ending test due to vehicle going off track (did not come back on track).')
@@ -883,7 +884,7 @@ class TestRunner:
         distance = carstate.get_centre_distance()
         # TODO Why lane_width is under Evolution and not Execution configuration?
         if distance > c.ev.lane_width / 2.0:
-            l.info("Car is off track: distance %f", distance)
+            l.debug("Car is off track: distance %f", distance)
 
             # Car is off track
             if distance >= c.ev.lane_width / 2.0 + c.ev.tolerance:
@@ -981,7 +982,7 @@ class TestRunner:
             self.start_beamng(scenario_file)
         else:
 
-            l.info("Loading scenario in a separate process")
+            l.debug("Loading scenario in a separate process")
 
             p = Process(target=load_scenario, args=('asfault',''.join(['asfault', str(self.test.test_id)])))
             p.start()
@@ -1049,7 +1050,7 @@ class TestRunner:
         self.clean_up_beamng_scenarios()
 
     def clean_up_beamng_scenarios(self):
-        l.info("Clean up resources")
+        l.debug("Clean up resources")
 
         delete_scenario_prefab(self.test_dir, self.test)
         delete_scenario_description(self.test_dir, self.test)

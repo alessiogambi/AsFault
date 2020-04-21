@@ -16,6 +16,7 @@ from asfault.selectors import *
 from asfault.search_stoppers import *
 from asfault.estimators import *
 
+import numpy
 
 CSV_HEADER = [
     'TimeStamp',
@@ -99,6 +100,8 @@ def dump_population(evo_step, generation, population, exported_tests_gen, export
     plots_dir = c.rg.get_plots_path()
     tests_dir = c.rg.get_tests_path()
 
+    l.debug("Dumping tests: %s", ', '.join([str(test.test_id) for test in population]))
+
     # Dump whatever tests were generated and possibly executed so far
     for test in population:
 
@@ -111,10 +114,12 @@ def dump_population(evo_step, generation, population, exported_tests_gen, export
             test.generation = generation
 
         if test not in exported_tests_gen:
+            l.debug("Adding %s to exported test generation", str(test.test_id))
             export_test_gen(plots_dir, tests_dir, test, render)
             exported_tests_gen.add(test)
 
         if test.test_id not in exported_tests_exec and test.execution:
+            l.debug("Adding %s to exported test execution", str(test.test_id))
             export_test_exec(plots_dir, execs_dir, test, render)
             exported_tests_exec.add(test.test_id)
 
@@ -155,7 +160,13 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
 
         if remaining_budget <= 0:
             l.info("Generation budget is over.")
-            return None
+            yield ('done', ())
+
+        stats = tools.Statistics(key=lambda ind: ind.fitness.values)
+        stats.register("avg", numpy.mean)
+        stats.register("std", numpy.std)
+        stats.register("min", numpy.min)
+        stats.register("max", numpy.max)
 
         # This is the search cycle. Every time it restarts we decrease the generation budget
         for step, data in gen.evolve_suite(remaining_budget, time_limit=remaining_time):
@@ -170,71 +181,59 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
                         out_file = os.path.join(plots_dir, out_file)
                         save_plot(out_file, dpi=c.pt.dpi_intermediate)
 
-            if step == 'time_limit_reached':
+            # For each execution
+            if step == 'test_executed':
+                l.info("Test executed.")
+                # data is a test, we create a population only for the sake of storing it...
+                population = [data]
+                dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
+
+            elif step == 'time_limit_reached':
                 l.info("Enforcing time limit. Stopping the search")
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-                return None
+                l.info("%s", stats.compile(population))
+                yield ('done', ())
 
-            if step == 'budget_limit_reached':
+
+            elif step == 'budget_limit_reached':
                 l.info("Enforcing generation limit. Stopping the search")
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-                return None
+                l.info("%s", stats.compile(population))
+                yield ('done', ())
 
-            if step == 'goal_achieved':
+            elif step == 'goal_achieved':
                 l.info("Search goal achieved")
                 _, population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
+                l.info("%s", stats.compile(population))
 
                 if c.ev.restart_search:
                     l.warning("Restart the search")
                     break
                 else:
                     l.warning("Search is over")
-                    return None
+                    yield ('done', ())
 
             # The test generation stage is over, evaluation is soon to begin
-            if step == 'finish_generation':
+            elif step == 'finish_generation':
                 l.info("Done generating tests for generation %s: %s", "{:03d}".format(generation), ", ".join([str(test.test_id) for test in data]))
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
                 generation += 1
 
-            # TODO Whaet's this?
-            # Not sure what's looped?
-            if step == 'looped':
-                l.warning("LOOPED GENERATION %s: %s", "{:03d}".format(generation), ", ".join([str(test.test_id) for test in data]))
-                population = data
+            # An evolution loop is done and a next one is about to begin so we need to log the data about execti
+            elif step == 'finish_evolution':
+                population, total_evol, total_eval = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-
-            # The evolution loop is done and a next one is about to begin
-            if step == 'finish_evolution':
-                # TODO This is wrong?
-                l.warning("EVOLUTION FINISHED: %s", ", ".join([str(test.test_id) for test in data]))
-                # final_path = c.rg.get_final_path()
-                population = data
-                dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
+                l.warning("Evolution step %d is finished", generation)
+                l.warning("Population is : %s", ''.join([str(test.test_id) for test in population]))
+                l.warning("Statistics %s", stats.compile(population))
                 generation += 1
-
-            # TODO What's this? the status of the things after we evaluated the individuals?
-            if step == 'evaluated':
-                population, evaluation, total_evol, total_eval = data
-                dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-                fitness = evaluation.score
-                oob = evaluation.oob
-                timeouts = evaluation.timeouts
-                diversity = evaluation.coverage
-                min_test = get_worst_test(population).test_id
-                max_test = get_best_test(population).test_id
-                # Encapsulate data to return to the outer caller printing to file..
-                evo = list()
-                evo.extend([generation, fitness, oob, timeouts,
-                            diversity, min_test, max_test])
-                evo.extend([total_evol, evaluation.total_coverage])
-                # This should be incremented after the execution not before...
-                yield evo
-
+            else:
+                l.error("Unknown step %s - %s ", step, data)
+                yield ('done', ())
 
 from deap import base, creator, tools
 
@@ -379,7 +378,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
         current_population.extend(population_made_of_best_individuals[0:target_pop_size])
         # Remove duplicates?
         for individual in current_population:
-            l.debug("Individual {} - {} selected as one of the best", individual.test_id, individual.fitness.values)
+            l.info("Individual %s - %s selected as one of the best", individual.test_id, individual.fitness.values)
 
     def pad_with_random_from_previous(target_pop_size, current_population, previous_population):
         raise NotImplementedError()
@@ -388,7 +387,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
         while len(current_population) < target_pop_size:
             random_ind = toolbox.individual
             del random_ind.fitness.values
-            l.debug("Random Individual {} added to current population", random_ind.test_id)
+            l.info("Random Individual {} added to current population", random_ind.test_id)
             current_population.append(random_ind)
 
     # This is mostly to enable random generation
@@ -398,6 +397,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
         for ind in random_population:
             del ind.fitness.values
             current_population.append(ind)
+            l.info("Random Individual {} added to current population", ind.test_id)
 
 
     if c.ev.pop_merger == 'pad_with_random':
@@ -418,16 +418,18 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
         pass
 
     # This report the result of a single evolution step to be logged so fitness and such can be seen
-    for evolution in run_deap_experiment(toolbox, factory, budget, time_limit=time_limit, render=render, show=show):
-        out_file = c.rg.get_results_path()
-        now_time = datetime.datetime.now()
-        now_time = now_time.isoformat()
-        prefix = [now_time, c.ev.evaluator, c.ev.bounds, c.ex.risk]
-        evolution = prefix + evolution
-        # Append evolution data to csv file
-        with open(out_file, 'a') as out:
-            writer = csv.writer(out, delimiter=';', quoting=csv.QUOTE_NONNUMERIC)
-            writer.writerow(evolution)
+    for status, data in run_deap_experiment(toolbox, factory, budget, time_limit=time_limit, render=render, show=show):
+        if status == 'done':
+            break
+        # out_file = c.rg.get_results_path()
+        # now_time = datetime.datetime.now()
+        # now_time = now_time.isoformat()
+        # prefix = [now_time, c.ev.evaluator, c.ev.bounds, c.ex.risk]
+        # evolution = prefix + evolution
+        # # Append evolution data to csv file
+        # with open(out_file, 'a') as out:
+        #     writer = csv.writer(out, delimiter=';', quoting=csv.QUOTE_NONNUMERIC)
+        #     writer.writerow(evolution)
 #
 # @DeprecationWarning
 # def experiment(seed, budget, factory, time_limit=-1, render=False, show=False, ):
