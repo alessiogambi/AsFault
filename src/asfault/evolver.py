@@ -447,14 +447,16 @@ class DeapTestGeneration:
                 mutable = offspring[mut_idx]
 
                 if random.random() < c.ev.mut_chance:
-                    l.debug("Mutating ({}){} ", mut_idx, mutable .test_id)
+                    l.info("Mutating (%d) Test#%d ", mut_idx, mutable .test_id)
 
                     mutated = self.toolbox.mutate(mutable)
 
-                    if mutated:
+                    if mutated and mutated is not None:
                         l.debug('Mutation produced {}', mutated.test_id)
                         del mutated.fitness.values
                         offspring[mut_idx] = mutated
+                    else:
+                        l.info("Mutation failed")
 
             next_generation.extend([child for child in offspring if not child.fitness.valid])
 

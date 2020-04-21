@@ -54,8 +54,9 @@ class MetaMutator():
 
         # Individual is a test
         # But we mutate the underlying road network
-        mutated_network = individual.network
-
+        # Clone the network object
+        mutated_network = individual.network.copy()
+        has_mutation = False
         for segment in [segment for segment in individual.path if segment.roadtype not in GHOST_TYPES]:
             if random.random() < mutation_probability:
                 l.debug("Mutation: segment %s selected for mutation", segment)
@@ -68,15 +69,21 @@ class MetaMutator():
                 # This generates a copy of the input segment
                 mutated_network, aux = mutator.apply_to(segment, mutated_network)
 
-                if mutated_network:
+                if mutated_network and mutated_network is not None:
+                    has_mutation = True
                     l.info('Replaced %s with %s', aux['target'], aux['replacement'])
                 else:
                     l.warning("Error while applying mutator %s", str(type(mutator)))
                     return None
 
+        if not has_mutation:
+            l.info('Original Individual was not mutated !')
+            # TODO Should this return the same individual instead?
+            return None
+
         # At this point we can try to create a test from the mutation
         if mutated_network.complete_is_consistent():
-            l.info('Successfully mutated: %s', individual.test_id)
+            l.info('Successfully mutated: Test#%s', individual.test_id)
             test = test_from_network(mutated_network)
             return test
         else:

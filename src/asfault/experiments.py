@@ -238,11 +238,13 @@ def initIndividual(ind_class, test_generator):
 
 
 def wrap_test_into_individual(ind_class, road_test):
-    # Note that ind_class is the constructor of the Individual class defined by creator.create
-    individual = ind_class(road_test.test_id, road_test.network, road_test.start, road_test.goal)
-    individual.set_path(road_test.path)
-    return individual
-
+    if road_test and road_test is not None:
+        # Note that ind_class is the constructor of the Individual class defined by creator.create
+        individual = ind_class(road_test.test_id, road_test.network, road_test.start, road_test.goal)
+        individual.set_path(road_test.path)
+        return individual
+    else:
+        return None
 
 def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=False, ):
 
@@ -274,6 +276,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
     # MetaMutator takes car of randomly selecting mutators and retring in case they fail
     mutator = MetaMutator()
 
+    # TODO This must be updated to retry cross-over as well
     def retry_operation(search_operator):
 
         def attempt_operator(*args, **kwargs):
@@ -281,7 +284,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
             while True:
                 try:
                     offspring = search_operator(*args, **kwargs)
-                    if offspring:
+                    if offspring and offspring is not None:
                         return offspring
                 except Exception as e:
                     l.error('Exception while creating offspring using: %s', search_operator)

@@ -44,7 +44,7 @@ def determine_start_goal_path(network):
     if candidates:
         for start, goal in candidates:
             # l.info(sg_file)
-            l.info('Checking candidate: (%s, %s), %s/%s', start, goal, candidate_idx, len(candidates))
+            l.debug('Checking candidate: (%s, %s), %s/%s', start, goal, candidate_idx, len(candidates))
             candidate_idx += 1
             paths = network.all_paths(start, goal)
             # paths = network.all_shortest_paths(start, goal)
@@ -52,14 +52,14 @@ def determine_start_goal_path(network):
             i = 0
             done = 0.05
             for path in paths:
-                l.info('Path has length: %s', len(path))
+                l.debug('Path has length: %s', len(path))
                 try:
                     polyline = get_path_polyline(network, start_coord, goal_coord, path)
                 except:
                     break
 
                 # TODO Select the best among the available paths?
-                l.info('Got polyline.')
+                l.debug('Got polyline.')
                 # score = self.estimator.score_path(path, polyline)
                 # l.info('Got score estimation: %s', score)
                 # if score > best_score:
