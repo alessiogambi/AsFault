@@ -1,22 +1,15 @@
 import logging as l
-import csv
-import json
 
-import random
-
-import time
-
-from asfault import config as c
 from asfault.beamer import *
 from asfault.evolver import *
 from asfault.plotter import *
 from asfault.tests import *
-from asfault.repair_crossover import *
 from asfault.selectors import *
 from asfault.search_stoppers import *
-from asfault.estimators import *
 
 import numpy
+from asfault.mutations import *
+from asfault.crossovers import *
 
 CSV_HEADER = [
     'TimeStamp',
@@ -183,7 +176,7 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
 
             # For each execution
             if step == 'test_executed':
-                l.info("Test executed.")
+                l.debug("Test executed.")
                 # data is a test, we create a population only for the sake of storing it...
                 population = [data]
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
@@ -243,6 +236,7 @@ def initIndividual(ind_class, test_generator):
     random_test = test_generator()
     return wrap_test_into_individual(ind_class, random_test)
 
+
 def wrap_test_into_individual(ind_class, road_test):
     # Note that ind_class is the constructor of the Individual class defined by creator.create
     individual = ind_class(road_test.test_id, road_test.network, road_test.start, road_test.goal)
@@ -274,18 +268,43 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
 
     # Register the cross-over function. MetaCrossover takes care of selecting the right crossover and retry its
     # application automatically. TODO Better name maybe?
-    crossover = crossovers.MetaCrossover()
+    crossover = MetaCrossover()
     toolbox.register("mate", crossover.crossover)
 
     # MetaMutator takes car of randomly selecting mutators and retring in case they fail
-    mutator = mutations.MetaMutator()
+    mutator = MetaMutator()
+
+    def retry_operation(search_operator):
+
+        def attempt_operator(*args, **kwargs):
+            epsilon = 0.25
+            while True:
+                try:
+                    offspring = search_operator(*args, **kwargs)
+                    if offspring:
+                        return offspring
+                except Exception as e:
+                    l.error('Exception while creating offspring using: %s', search_operator)
+                    l.exception(e)
+                # Shall we give up or retry?
+                failed = random.random()
+
+                if failed < epsilon:
+                    break
+                else:
+                    l.info("Retry the operation but increase the probability of giving up.")
+                    epsilon *= 1.1
+
+            return None
+
+        return attempt_operator
 
     def wrapping(wrapped):
         def _f(*args, **kwargs):
             return wrap_test_into_individual(creator.Individual, wrapped(*args, **kwargs))
         return _f
 
-    toolbox.register("mutate", wrapping(mutator.mutate))
+    toolbox.register("mutate", wrapping(retry_operation(mutator.mutate)))
 
     assert time_limit > 0, "Time limit cannot be negative"
     if time_limit is not math.inf:

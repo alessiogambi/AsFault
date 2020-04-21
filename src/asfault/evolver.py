@@ -1,21 +1,10 @@
 import datetime
-import logging as l
-import random
-import sys
-import math
-
 from time import time, sleep
 
-from shapely.geometry import box
-
-from asfault import crossovers
-from asfault import mutations
 from asfault.config import *
 from asfault.beamer import TestRunner, RESULT_SUCCESS, REASON_OFF_TRACK, REASON_TIMED_OUT, REASON_GOAL_REACHED, generate_test_prefab
 from asfault.generator import RoadGenerator, generate_networks
-from asfault.tests import *
 from asfault.plotter import *
-from asfault.network import SEG_FACTORIES
 
 UNIQUE_THRESHOLD = 0.1
 
@@ -435,7 +424,6 @@ class DeapTestGeneration:
                     l.debug("Same individual. Move on")
                     continue
 
-                # TODO This should be replaces with CXP
                 if random.random < c.crossover_probability:
                     l.debug("Mating ({}){} and ({}){} ", mom_idx, mom.test_id, dad_idx, dad.test_id)
                     # This returns the individuals resulting from the cross-over and leaves the parents intact so

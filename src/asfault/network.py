@@ -1424,7 +1424,6 @@ class NetworkLayout:
 
     def replace_node(self, target, replacement):
         self.remove_branch_intersections()
-        l.info(target)
         parent = self.get_parent(target)
         children = self.get_children(target)
         self.remove_node(target)
