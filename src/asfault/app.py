@@ -36,6 +36,7 @@ RESULTS_FILE = 'results.json'
 DEFAULT_LOG = 'asfault.log'
 DEFAULT_ENV = os.path.join(str(Path.home()), '.asfaultenv')
 
+VERSION=2.0
 
 def log_exception(extype, value, trace):
     l.exception('Uncaught exception:', exc_info=(extype, value, trace))
@@ -47,6 +48,7 @@ def setup_logging(log_file):
     l.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                   level=l.INFO, handlers=[term_handler, file_handler])
     sys.excepthook = log_exception
+    l.info('AsFault Version: %s', VERSION)
     l.info('Started the logging framework writing to file: %s', log_file)
 
 
