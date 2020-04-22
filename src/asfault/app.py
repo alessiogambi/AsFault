@@ -48,9 +48,10 @@ def setup_logging(log_file):
     l.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s',
                   level=l.INFO, handlers=[term_handler, file_handler])
     sys.excepthook = log_exception
-    l.info('AsFault Version: %s', VERSION)
     l.info('Started the logging framework writing to file: %s', log_file)
 
+def print_version():
+    print('AsFault Version:', VERSION)
 
 def milliseconds():
     return round(time() * 1000)
@@ -361,4 +362,5 @@ def process_results(exp_dir):
 
 
 if __name__ == '__main__':
+    print_version()
     cli()
