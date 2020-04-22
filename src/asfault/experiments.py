@@ -199,6 +199,9 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
             elif step == 'goal_achieved':
                 l.info("Search goal achieved")
                 _, population = data
+                # Before computing the statistics of the final population we need to remove invalid individuals
+                population = [test for test in population if test.fitness.valid]
+
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
                 l.info("%s", stats.compile(population))
 

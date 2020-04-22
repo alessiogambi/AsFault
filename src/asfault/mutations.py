@@ -117,6 +117,8 @@ class Mutator:
     def apply(self, resident):
         raise NotImplementedError()
 
+# TODO Note that we use factories for mutators here to ensure we generate pieces of the expected shape.
+
 class SegmentReplacingMutator(Mutator):
     """Replace one segment of the road network with another one"""
     def __init__(self, name, key, factory):
@@ -143,8 +145,11 @@ class SegmentReplacingMutator(Mutator):
         network = resident.network.copy()
         return self.apply_to(self.get_target(network), network)
 
-@DeprecationWarning # Include those later
+
+# TODO Create also a TurnPivotMutator
 class TurnAngleMutator(SegmentReplacingMutator):
+    """ A Replacing mutator which replaces a turn with another turn which has a different angle. This might result into
+    creating a turn that has the opposite direction..."""
     NAME = 'turn_angle_mutator_{}'
     TURN_MIN = 15
     TURN_MAX = 90
@@ -165,14 +170,30 @@ class TurnAngleMutator(SegmentReplacingMutator):
 
         return None
 
-    def get_replacement(self, network, target):
+    def apply_to(self, target, network):
+        if not target:
+            return None
+
+        if target.roadtype != TYPE_L_TURN and target.roadtype != TYPE_R_TURN:
+            l.info("Cannot mutate turn angle for segment %s", target)
+            return None
+
+        parent = network.get_parent(target)
+        # TODO Not really sure what will this do
+        factory = generate_turn_factory(self.angle, target.pivot_off, target.pivot_angle)
+        replacement = factory(network.next_seg_id(), parent)[0]
+        network.replace_node(target, replacement)
+        return network, {'target': target, 'replacement': replacement}
+
+    @DeprecationWarning
+    def get_replacement(self, target, network):
         parent = network.get_parent(target)
         factory = generate_turn_factory(
             self.angle, target.pivot_off, target.pivot_angle)
         replacement = factory(network.next_seg_id(), parent)[0]
         return replacement
 
-@DeprecationWarning # Include those later
+
 class StraightLengthMutator(SegmentReplacingMutator):
     NAME = 'straight_length_mutator_{}'
 
@@ -191,6 +212,22 @@ class StraightLengthMutator(SegmentReplacingMutator):
 
         return None
 
+    def apply_to(self, target, network):
+        if not target:
+            return None
+
+        if target.roadtype != TYPE_STRAIGHT:
+            l.info("Cannot mutate length for segment %s", target)
+            return None
+
+        parent = network.get_parent(target)
+        # TODO Not really sure what will this do
+        factory = generate_straight_factory(self.length)
+        replacement = factory(network.next_seg_id(), parent)[0]
+        network.replace_node(target, replacement)
+        return network, {'target': target, 'replacement': replacement}
+
+    @DeprecationWarning
     def get_replacement(self, network, target):
         parent = network.get_parent(target)
         factory = generate_straight_factory(self.length)

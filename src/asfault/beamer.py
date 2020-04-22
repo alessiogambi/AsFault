@@ -619,9 +619,9 @@ def start_default_controller():
 
 def load_scenario(scenario_level, scenario_name):
     """Load a scenario into a running BeamNG"""
+    bng = BeamNGpy('localhost', 64256)
     try:
-        beamng = BeamNGpy('localhost', 64256)
-        bng = beamng.open(launch=False)
+        bng = bng.open(launch=False)
         scenario = Scenario(scenario_level, scenario_name)
         scenario.bng = bng
         scenario.find(bng)

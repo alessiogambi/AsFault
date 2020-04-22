@@ -117,7 +117,7 @@ class EvolutionConfig:
     EVALUATOR = None # 'lanedist'
     SELECTOR =  None # 'tournament'
     ESTIMATOR = None # 'length'
-    JOIN_PROBABILITY = 0.5
+    JOIN_PROBABILITY = 0.5 # REPLACE THIS WITH CROSSOVER_PROBABILITY
     PARTIAL_MERGE_M_COUNT = 1
     PARTIAL_MERGE_D_COUNT = 1
     TRY_ALL_OPS = True
@@ -126,6 +126,8 @@ class EvolutionConfig:
     SEARCH_STOPPER = None
     RESTART_SEARCH = True
     POPULATION_MERGER = None
+
+    CROSSOVER_PROBABILITY = 0.8
 
     @staticmethod
     def get_default():
@@ -154,6 +156,7 @@ class EvolutionConfig:
         ret['restart_search'] = EvolutionConfig.RESTART_SEARCH
 
         ret['pop_merger'] = EvolutionConfig.POPULATION_MERGER
+        ret['crossover_probability'] = EvolutionConfig.CROSSOVER_PROBABILITY
 
         return ret
 
@@ -184,6 +187,7 @@ class EvolutionConfig:
         self.restart_search = cfg.get('restart_search', EvolutionConfig.RESTART_SEARCH)
 
         self.pop_merger = cfg.get('pop_merger', EvolutionConfig.POPULATION_MERGER)
+        self.crossover_probability = cfg.get('crossover_probability', EvolutionConfig.CROSSOVER_PROBABILITY)
 
 
 class PlotConfig:

@@ -31,7 +31,6 @@ class MetaCrossover:
                 for child in children:
                     try:
                         if child.complete_is_consistent():
-                            test = self.test_from_network(child)
                             consistent.append(child)
                         else:
                             break
@@ -304,7 +303,8 @@ class Join(Crossover):
     def certify(self, network, gen):
         if network.complete_is_consistent():
             try:
-                test = gen.test_from_network(network)
+                # Is this really necessary
+                gen.test_from_network(network)
                 return True
             except Exception as e:
                 l.error('Exception while joining: ')

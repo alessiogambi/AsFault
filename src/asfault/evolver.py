@@ -424,8 +424,8 @@ class DeapTestGeneration:
                     l.debug("Same individual. Move on")
                     continue
 
-                if random.random < c.crossover_probability:
-                    l.debug("Mating ({}){} and ({}){} ", mom_idx, mom.test_id, dad_idx, dad.test_id)
+                if random.random() < c.ev.crossover_probability:
+                    l.info("Mating (%d)Test#%d and (%d) Test#%d", mom_idx, mom.test_id, dad_idx, dad.test_id)
                     # This returns the individuals resulting from the cross-over and leaves the parents intact so
                     # they can mate again without problems
 
