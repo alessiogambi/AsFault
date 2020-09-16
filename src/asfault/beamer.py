@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 from time import sleep, time
+import os
 
 from collections import defaultdict
 import shapely.geometry
@@ -32,10 +33,9 @@ VEHICLE_FILE = 'vehicle.prefab'
 LUA_FILE = 'asfault.lua'
 DESCRIPTION_FILE = 'asfault.json'
 
-TEMPLATE_PATH = 'src/asfault/beamng_templates'
+# Make sure that we find the right folder no matter what?
+TEMPLATE_PATH = os.path.join(os.path.join(__file__, os.pardir), 'beamng_templates')
 TEMPLATE_ENV = Environment(loader=FileSystemLoader(TEMPLATE_PATH))
-
-BEAMNG_BINARY = 'BeamNG.research.x64.exe'
 
 MIN_NODE_DISTANCE = 0.1
 
@@ -469,6 +469,9 @@ def prepare_obstacles(network):
 
 
 def generate_test_prefab(test):
+
+    l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
+
     streets = prepare_streets(test.network)
     dividers = prepare_dividers(test.network)
     l_boundaries, r_boundaries = prepare_boundaries(test.network)
@@ -490,6 +493,8 @@ def generate_test_prefab(test):
         test_dict['goal'] = {'x': test.goal.x, 'y': test.goal.y, 'z': 0.01}
     else:
         test_dict['goal'] = {'x': 0, 'y': 0, 'z': 0.01}
+
+
 
     if c.ex.custom_beamng_template:
         l.warning("USING CUSTOM PREFAB TEMPLATE %s", c.ex.custom_beamng_template)
@@ -720,7 +725,7 @@ class TestRunner:
         # This enables the use of BeamNG.py, which means BNG will not run smoothly...
         lua = "registerCoreModule('util/researchGE')"
         userpath = c.ex.get_user_dir()
-        call = [BEAMNG_BINARY, '-userpath', userpath, '-lua', lua, '-console']
+        call = [c.ex.beamng_executable, '-userpath', userpath, '-lua', lua, '-console']
         l.debug('Calling BeamNG: %s', call)
         return subprocess.Popen(call)
 
@@ -733,8 +738,10 @@ class TestRunner:
             # ALESSIO: This changed since the original version of AsFault
             lua += ";registerCoreModule('util/researchGE')"
         userpath = c.ex.get_user_dir()
-        call = [BEAMNG_BINARY, '-userpath', userpath, '-lua', lua, '-console']
+
+        call = [c.ex.beamng_executable, '-userpath', userpath, '-lua', lua, '-console']
         l.debug('Calling BeamNG: %s', call)
+
         self.process = subprocess.Popen(call)
 
     def kill_beamng(self):
@@ -785,6 +792,7 @@ class TestRunner:
         return False
 
     def state_handler(self, param):
+        """ Dedides what to do depending on the state of the experiment"""
 
         data = param.split(';')
 

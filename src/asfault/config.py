@@ -348,6 +348,8 @@ class PlotConfig:
 
 class ExecutionConfig:
     BEAMNG_DIR = os.path.join(str(Path.home()), 'Documents/BeamNG.research')
+    BEAMNG_EXECUTABLE = 'BeamNG.research.x64.exe'
+
     LEVEL_DIR = 'levels/asfault'
     HOST = 'localhost'
     PORT = 32512
@@ -376,6 +378,8 @@ class ExecutionConfig:
         ret = dict()
 
         ret['beamng_dir'] = ExecutionConfig.BEAMNG_DIR
+        ret['beamng_execuitable'] = ExecutionConfig.BEAMNG_EXECUTABLE
+
         ret['level_dir'] = ExecutionConfig.LEVEL_DIR
         ret['host'] = ExecutionConfig.HOST
         ret['port'] = ExecutionConfig.PORT
@@ -406,6 +410,8 @@ class ExecutionConfig:
             cfg = json.loads(infile.read())
 
         self.beamng_dir = cfg.get('beamng_dir', ExecutionConfig.BEAMNG_DIR)
+        self.beamng_executable = cfg.get('beamng_executable', ExecutionConfig.BEAMNG_EXECUTABLE)
+
         self.level_dir = cfg.get('level_dir', ExecutionConfig.LEVEL_DIR)
         self.host = cfg.get('host', ExecutionConfig.HOST)
         self.port = cfg.get('port', ExecutionConfig.PORT)
