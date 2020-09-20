@@ -33,8 +33,7 @@ Foreach-Object {
             
             # Execute the experiment from the right folder
             #cd C:\Users\Alessio\AsFault\
-            #C:\Users\Alessio\AsFault\.alessio\Scripts\
-            python.exe C:\Users\Alessio\AsFault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --render $wrapperScript
+            C:\Users\Alessio\AsFault\.alessio\Scripts\python.exe C:\Users\Alessio\AsFault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --render $wrapperScript
             #cd C:\Users\Alessio\AsFault\scripts
         # }
     }

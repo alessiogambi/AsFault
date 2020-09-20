@@ -123,20 +123,6 @@ def bng(seed, generations, render, show, time_limit):
 def ext(seed, generations, render, show, time_limit, ctrl):
     l.info('Starting external AI {} with seed: {}'.format(ctrl, seed))
 
-    # from beamer import TEMPLATE_ENV, PREFAB_FILE, TEMPLATE_PATH
-
-    # from jinja2 import FileSystemLoader, Environment
-    # TEMPLATE_PATH = os.path.join(os.path.join(__file__, os.pardir), 'beamng_templates')
-    # TEMPLATE_ENV = Environment(loader=FileSystemLoader(TEMPLATE_PATH))
-    # templates = TEMPLATE_ENV.list_templates()
-    # l.warning("SETTING UP TESTS: ")
-    # l.warning("TEMPLATE_PATH" + TEMPLATE_PATH)
-    # l.warning("TEMPLATE_ENV: " + str(TEMPLATE_ENV))
-    # l.warning("TEMPLATES: " + str(templates))
-    #
-    # sys.exit(1)
-
-
     # Ensure the right confiruations are there
     # Do not use super-fast-time
     config.ex.max_speed = 'false'

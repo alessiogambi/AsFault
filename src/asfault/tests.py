@@ -621,6 +621,8 @@ class CarState:
         dic['pos_z'] = state.pos_z
 
         dic['steering'] = state.steering
+        dic['timestamp'] = state.timestamp
+        dic['damage'] = state.damage
 
         dic['g_x'] = state.g_x
         dic['g_y'] = state.g_y
@@ -636,15 +638,17 @@ class CarState:
         default = defaultdict(float)
         default.update(state_dict)
         state_dict = default
-        state = CarState(test, state_dict['pos_x'], state_dict['pos_y'], state_dict['pos_z'],
-                         0, state_dict['steering'],
+        state = CarState(test, state_dict.get("timestamp", -1), state_dict['pos_x'], state_dict['pos_y'], state_dict['pos_z'],
+                         state_dict.get("damage", 0), state_dict['steering'],
                          state_dict['g_x'], state_dict['g_y'], state_dict['g_z'],
                          state_dict['vel_x'], state_dict['vel_y'], state_dict['vel_z'])
         return state
 
-    def __init__(self, test, pos_x, pos_y, pos_z, damage, steering, g_x, g_y, g_z, vel_x,
+    def __init__(self, test, timestamp, pos_x, pos_y, pos_z, damage, steering, g_x, g_y, g_z, vel_x,
                  vel_y, vel_z):
         self.test = test
+        # This is the time elapsed in the simulation
+        self.timestamp = timestamp
         self.pos_x = pos_x
         self.pos_y = pos_y
         self.pos_z = pos_z

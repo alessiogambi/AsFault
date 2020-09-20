@@ -173,6 +173,7 @@ local function requestEgoVehicleData()
     be:getPlayerVehicle(0):queueLuaCommand("obj:queueGameEngineLua('egoGForce[\"gx\"] = '..sensors.gx)")
     be:getPlayerVehicle(0):queueLuaCommand("obj:queueGameEngineLua('egoGForce[\"gy\"] = '..sensors.gy)")
     be:getPlayerVehicle(0):queueLuaCommand("obj:queueGameEngineLua('egoGForce[\"gz\"] = '..sensors.gz)")
+
 end
 
 local function handleSocketInput()
@@ -196,25 +197,39 @@ local function produceSocketOutput()
     if playerVec ~= -1 then
         local carData = map.objects[playerVec]
         if carData then
-            local message = carData.pos.x .. ';' .. carData.pos.y .. ';' .. carData.pos.z
-            message = message .. ';' .. carData.damage
-            message = message .. ';' .. egoVehicleState['steering']
-            
-            message = message .. ';' .. egoGForce['gx'] .. ';' .. egoGForce['gy'] .. ';' .. egoGForce['gz']
-            
-            message = message .. ';' .. carData.vel.x .. ';' .. carData.vel.y .. ';' .. carData.vel.z
-            message = message .. '\n'
-            message = "STATE:"..message
+            local message = "{"
+            -- car state attributes
+            message = message .. "\"pos_x\": " .. carData.pos.x .. ", "
+            message = message .. "\"pos_y\": " .. carData.pos.y .. ", "
+            message = message .. "\"pos_z\": " .. carData.pos.z .. ", "
 
-            -- 
-            -- log('I', carData.pos.x .. ';' .. carData.pos.y .. ';' .. carData.pos.z)
-            -- log('I', carData.damage )
-            -- log('I', egoVehicleState['steering'])
-            -- log('I', egoGForce['gx'] .. ';' .. egoGForce['gy'] .. ';' .. egoGForce['gz'] )
-            -- log('I', carData.vel.x .. ';' .. carData.vel.y .. ';' .. carData.vel.z )
-            -- log('I', '')
+            message = message .. "\"steering\": " .. egoVehicleState['steering'] .. ", "
 
-           sendSocketMessage(message)
+            message = message .. "\"vel_x\": " .. carData.vel.x .. ", "
+            message = message .. "\"vel_y\": " .. carData.vel.y .. ", "
+            message = message .. "\"vel_z\": " .. carData.vel.z .. ", "
+
+            message = message .. "\"g_x\": " .. egoGForce['gx'] .. ", "
+            message = message .. "\"g_y\": " .. egoGForce['gy'] .. ", "
+            message = message .. "\"g_z\": " .. egoGForce['gz'] .. ", "
+
+            -- Additional data from the execution
+            message = message .. "\"damage\": " .. carData.damage .. ", "
+            -- Tag the message with the scenario/logical time if not nil
+            if ( scenario_scenarios.getScenario() == nil or scenario_scenarios.getScenario().timer == nil ) then
+                message = message .. "\"timestamp\": -1 "
+            else
+                message = message .. "\"timestamp\": " .. scenario_scenarios.getScenario().timer
+            end
+
+            -- Message termination
+            message = message .. "}\n"
+
+            --log('I', message)
+
+            message = "STATE:" .. message
+
+            sendSocketMessage(message)
         end
     end
 end

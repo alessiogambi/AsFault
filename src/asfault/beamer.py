@@ -8,6 +8,7 @@ import subprocess
 import sys
 from time import sleep, time
 import os
+import json
 
 from collections import defaultdict
 import shapely.geometry
@@ -711,9 +712,15 @@ class TestRunner:
     def kill_process(process):
         if process:
             if os.name == 'nt':
-                subprocess.call(
-                    ['taskkill', '/F', '/T', '/PID', str(process.pid)])
+                # Maybe wait 1 or 2 sec?
+                #l.warning("Gracefully ask the program to stop Using TASKKILL")
+                #subprocess.call(['taskkill', '/PID', str(process.pid)])
+                #sleep(10)
+                # Maybe wait 1 or 2 sec?
+                #l.warning("KILL PROCESS Using TASKKILL")
+                subprocess.call(['taskkill', '/F', '/T', '/PID', str(process.pid)])
             else:
+                l.warning("KILL PROCESS OS KILL SIGTERM")
                 os.kill(process.pid, signal.SIGTERM)
             return True
         return False
@@ -792,85 +799,81 @@ class TestRunner:
         return False
 
     def state_handler(self, param):
-        """ Dedides what to do depending on the state of the experiment"""
+#        """ Dedides what to do depending on the state of the experiment"""
 
-        data = param.split(';')
+        # l.info("State handler: " + param)
+        # This is a JSON Object: Parse is
+        data = json.loads(param)
 
-        if len(data) == 11:
-            data = [float(dat) for dat in data]
+        state = CarState.from_dict(self.test, data)
 
-            state = CarState(self.test, *data)
+        self.states.append(state)
+        if self.tracer:
+            self.tracer.update_carstate(state)
 
-            self.states.append(state)
-            if self.tracer:
-                self.tracer.update_carstate(state)
+        finished = self.goal_reached(state)
+        if finished:
+            l.info('Ending test due to vehicle reaching the goal.')
+            return RESULT_SUCCESS, REASON_GOAL_REACHED
 
-            finished = self.goal_reached(state)
-            if finished:
-                l.info('Ending test due to vehicle reaching the goal.')
-                return RESULT_SUCCESS, REASON_GOAL_REACHED
+        off_track = self.off_track(state)
 
-            off_track = self.off_track(state)
+        if off_track:
+            if not self.is_oob:
+                l.warning('New OBE Detected')
 
-            if off_track:
-                if not self.is_oob:
-                    l.warning('New OBE Detected')
+                self.is_oob = True
+                self.oobs += 1
+                if self.current_segment:
+                    seg_key = self.current_segment.key
+                    self.seg_oob_count[seg_key] += 1
+                self.oob_speeds.append(state.get_speed())
 
-                    self.is_oob = True
-                    self.oobs += 1
-                    if self.current_segment:
-                        seg_key = self.current_segment.key
-                        self.seg_oob_count[seg_key] += 1
-                    self.oob_speeds.append(state.get_speed())
+                self.observed_obe_states += 1
 
-                    self.observed_obe_states += 1
-
-                    if c.ex.dont_stop_at_obe:
-                        l.debug("Don't stop @ OBE enabled, keep going")
-                        pass
-                    elif self.observed_obe_states <= c.ex.observation_interval:
-                        l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
-                        self.observed_obe_states += 1
-                    else:
-                        l.info('Ending test due to vehicle going off track.')
-                        return RESULT_FAILURE, REASON_OFF_TRACK
-                else:
-                    l.debug("- Observed OBE state")
-                    if c.ex.dont_stop_at_obe:
-                        l.debug("Don't stop @ OBE enabled, keep going")
-                        pass
-                    elif self.observed_obe_states <= c.ex.observation_interval:
-                        l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
-                        self.observed_obe_states += 1
-                    else:
-                        l.info('Ending test due to vehicle going off track (did not come back on track).')
-                        return RESULT_FAILURE, REASON_OFF_TRACK
+                if c.ex.dont_stop_at_obe:
+                    l.debug("Don't stop @ OBE enabled, keep going")
                     pass
-
-            else:
-                self.observed_obe_states = 0
-
-                if self.is_oob and not c.ex.dont_stop_at_obe:
-                    l.info('Ending test due to vehicle going off track (came back on track).')
+                elif self.observed_obe_states <= c.ex.observation_interval:
+                    l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                    self.observed_obe_states += 1
+                else:
+                    l.info('Ending test due to vehicle going off track.')
                     return RESULT_FAILURE, REASON_OFF_TRACK
+            else:
+                l.debug("- Observed OBE state")
+                if c.ex.dont_stop_at_obe:
+                    l.debug("Don't stop @ OBE enabled, keep going")
+                    pass
+                elif self.observed_obe_states <= c.ex.observation_interval:
+                    l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                    self.observed_obe_states += 1
+                else:
+                    l.info('Ending test due to vehicle going off track (did not come back on track).')
+                    return RESULT_FAILURE, REASON_OFF_TRACK
+        else:
+            self.observed_obe_states = 0
 
-                self.is_oob = False
-                self.current_segment = state.get_segment()
+            if self.is_oob and not c.ex.dont_stop_at_obe:
+                l.info('Ending test due to vehicle going off track (came back on track).')
+                return RESULT_FAILURE, REASON_OFF_TRACK
 
+            self.is_oob = False
+            self.current_segment = state.get_segment()
 
+        damaged = self.vehicle_damaged(state)
+        if damaged:
+            l.info('Ending test due to vehicle taking damage.')
+            return RESULT_FAILURE, REASON_VEHICLE_DAMAGED
 
-            damaged = self.vehicle_damaged(state)
-            if damaged:
-                pass
-                #l.info('Ending test due to vehicle taking damage.')
-                # return RESULT_FAILURE, REASON_VEHICLE_DAMAGED
+        standstill = self.check_min_speed(state)
+        if False and standstill:
+            l.info('Ending test due to vehicle standing still.')
+            return RESULT_FAILURE, REASON_TIMED_OUT
 
-            standstill = self.check_min_speed(state)
-            if False and standstill:
-                l.info('Ending test due to vehicle standing still.')
-                return RESULT_FAILURE, REASON_TIMED_OUT
-
+        # Defatul behavior. Do nothing
         return None, None
+
 
     def read_lines(self):
         self.client.settimeout(30)
@@ -886,6 +889,7 @@ class TestRunner:
     def goal_reached(self, carstate):
         pos = Point(carstate.pos_x, carstate.pos_y)
         distance = pos.distance(self.test.goal)
+        # l.info("Distance to Goal " + str(distance))
         return distance < c.ex.goal_distance
 
     def off_track(self, carstate):
@@ -947,17 +951,22 @@ class TestRunner:
                self.end_time.isoformat())
 
     def get_time_left(self):
+
         now = datetime.datetime.now()
         return self.end_time - now
 
     def timed_out(self):
-        left = self.get_time_left()
-        ret = left.seconds <= 0
-        return ret
+        # TODO Define a timeout based on the timestamp of the latest car state and duration
+        # TODO Define a timeout based ont the overall test execution
+        return False
+        #left = self.get_time_left()
+        #ret = left.seconds <= 0
+        #return ret
+
 
 
     def start_controller(self):
-        l.debug('Calling controller process: %s', self.ctrl)
+        l.info('Calling controller process: %s', self.ctrl)
         self.ctrl_process = subprocess.Popen(self.ctrl)
 
     def kill_controller(self):
@@ -1025,6 +1034,7 @@ class TestRunner:
             if self.tracer:
                 self.tracer.pause()
 
+            # TODO Define a timeout in the logical simulaiton time as well. Internal timeout, external timeout !
             if not result and self.timed_out():
                 l.info('Ending test execution due to vehicle timing out.')
                 result, reason = RESULT_FAILURE, REASON_TIMED_OUT
