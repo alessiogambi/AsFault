@@ -114,6 +114,7 @@ end
 
 -- called when countdown finished
 local function onRaceStart()
+    log('I', 'Race Start')
 end
 
 local function onClientPostStartMission()
@@ -160,6 +161,7 @@ local function checkEgoVehiclePresent()
                 helper.setAiPath(arg)
             end
             goalSet = true
+            log('I', 'Goal Set')
         end
     end
 end
@@ -196,7 +198,7 @@ local function produceSocketOutput()
     local playerVec = be:getPlayerVehicleID(0)
     if playerVec ~= -1 then
         local carData = map.objects[playerVec]
-        if carData then
+        if ( carData and goalSet ) then
             local message = "{"
             -- car state attributes
             message = message .. "\"pos_x\": " .. carData.pos.x .. ", "

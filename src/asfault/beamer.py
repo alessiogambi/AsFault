@@ -799,7 +799,11 @@ class TestRunner:
         return False
 
     def state_handler(self, param):
-#        """ Dedides what to do depending on the state of the experiment"""
+        """ Dedides what to do depending on the state of the experiment"""
+
+        # To synchronize AsFault and BeamNG.research we must rely on some heuristic. The issue is that the states
+        #   are send over even if the car is still outside the road. So we need to give the simulator some time to update
+        #   otherwise we will automatically log an OBE. Not sure why the car does not spawn in the road, tho
 
         # l.info("State handler: " + param)
         # This is a JSON Object: Parse is
@@ -807,7 +811,18 @@ class TestRunner:
 
         state = CarState.from_dict(self.test, data)
 
-        self.states.append(state)
+        # TODO 8 is totally subjective and probably too long...
+        if state.timestamp < 8:
+            # l.info("Sky warmup" + str(state.timestamp) + str(state))
+            return None, None
+
+        # Note: states are refreshed with Frame Rate not logical time ! So it might happend we get the same states
+        #   multiple times
+        if state not in self.states:
+            self.states.append(state)
+        else:
+            l.info("Duplicate state detected. Discard it" + str(state))
+
         if self.tracer:
             self.tracer.update_carstate(state)
 
