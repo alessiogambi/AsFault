@@ -434,11 +434,13 @@ class DeapTestGeneration:
                     if children:
                         l.debug('Cross-over produced %s children', len(children))
 
-                    for idx, child in zip([mom_idx, dad_idx], children):
-                        del child.fitness.values
-                        offspring[idx] = child
-                        l.debug("Cross-over generated child {} which replaced parent({}){}", child.test_id, idx,
-                                offspring[idx].test_id)
+                        for idx, child in zip([mom_idx, dad_idx], children):
+                            del child.fitness.values
+                            offspring[idx] = child
+                            l.debug("Cross-over generated child {} which replaced parent({}){}", child.test_id, idx,
+                                    offspring[idx].test_id)
+                    else:
+                        l.debug('Cross-over did not produce any valid children')
                 else:
                     l.debug("Did not mate ({}){} and ({}){} ", mom_idx, mom.test_id, dad_idx, dad.test_id)
 
