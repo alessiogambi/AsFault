@@ -412,7 +412,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
         while len(current_population) < target_pop_size:
             random_ind = toolbox.individual
             del random_ind.fitness.values
-            l.info("Random Individual {} added to current population", random_ind.test_id)
+            l.info("Random Individual " + str(random_ind.test_id) + " added to current population")
             current_population.append(random_ind)
 
     # This is mostly to enable random generation
@@ -422,7 +422,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
         for ind in random_population:
             del ind.fitness.values
             current_population.append(ind)
-            l.info("Random Individual {} added to current population", ind.test_id)
+            l.info("Random Individual " + str(ind.test_id) + " added to current population")
 
 
     if c.ev.pop_merger == 'pad_with_random':
