@@ -1,6 +1,8 @@
 import datetime
 from time import time, sleep
 
+import itertools
+
 from asfault.config import *
 from asfault.beamer import TestRunner, RESULT_SUCCESS, REASON_OFF_TRACK, REASON_TIMED_OUT, REASON_GOAL_REACHED, generate_test_prefab
 from asfault.generator import RoadGenerator, generate_networks
@@ -337,9 +339,10 @@ class DeapTestGeneration:
         ret = datetime.datetime.now() - self.wall_time
         return ret.seconds
 
-    def evolve_suite(self, generations, time_limit):
+    def evolve_suite(self, generations, time_limit, use_simulation_time):
         total_evaluation_time = 0
         total_evol_time = 0
+        total_simulation_time = 0
 
         if time_limit != math.inf:
             l.info("Generation has %d seconds left", time_limit)
@@ -371,7 +374,7 @@ class DeapTestGeneration:
             executed_test.fitness.values = (fitness_values,)
             l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
             total_evaluation_time += self.end_evaluation_clock()
-
+            total_simulation_time += executed_test.execution.simulation_time
             # Dumping of the population happens ONLY after the selection, meaning that if a test is executed but not selected it will not be dumped.
             yield ('test_executed', (executed_test))
 
@@ -381,16 +384,32 @@ class DeapTestGeneration:
                 # If we return at this point, the loop will not be executed
                 yield ('goal_achieved', (executed_test, self.population))
 
-            if self.get_wall_time_clock() >= time_limit:
-                l.info("Enforcing time limit")
-                # If we return at this point, the loop will not be executed
-                yield ('time_limit_reached', (self.population))
+            if not use_simulation_time:
+                if self.get_wall_time_clock() >= time_limit:
+                    l.info("Enforcing time limit")
+                    # If we return at this point, the loop will not be executed
+                    yield ('time_limit_reached', (self.population))
+                else:
+                    l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
             else:
-                l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
+                if total_simulation_time >= time_limit:
+                    l.info("Enforcing time limit")
+                    # If we return at this point, the loop will not be executed
+                    yield ('time_limit_reached', (self.population))
+                else:
+                    l.info("Remaining time %f", time_limit - total_simulation_time)
 
         l.debug('Entering main evolution loop: remaining generations {}.', generations)
-        for _ in range(generations):
-            l.debug('Starting evolution clock.')
+        natural_numbers = itertools.count()
+
+        # Iterate over all the numbers that are less than generations
+        for n in natural_numbers:
+
+            if n > generations:
+                l.info('Main evolution loop: no more generation')
+                break
+
+            l.debug('Starting evolution clock for generation %d', n)
             self.beg_evol_clock()
 
             l.info('Test evolution step: %s', self.step)
@@ -480,7 +499,7 @@ class DeapTestGeneration:
                 executed_test.fitness.values = (fitness_values, )
                 l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
                 total_evaluation_time += self.end_evaluation_clock()
-
+                total_simulation_time += executed_test.execution.simulation_time
                 # Dumping of the population happens ONLY later
                 yield ('test_executed', (executed_test))
 
@@ -489,12 +508,20 @@ class DeapTestGeneration:
                     l.debug("The search achieved its goal. Stop.")
                     yield ('goal_achieved', (executed_test, self.population))
 
-                if self.get_wall_time_clock() >= time_limit:
-                    l.info("Enforcing time limit")
-                    # Notify the "caller" about ending the generation.
-                    yield ('time_limit_reached', (self.population))
+                if not use_simulation_time:
+                    if self.get_wall_time_clock() >= time_limit:
+                        l.info("Enforcing time limit")
+                        # Notify the "caller" about ending the generation.
+                        yield ('time_limit_reached', (self.population))
+                    else:
+                      l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
                 else:
-                  l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
+                    if total_simulation_time >= time_limit:
+                        l.info("Enforcing time limit")
+                        # Notify the "caller" about ending the generation.
+                        yield ('time_limit_reached', (self.population))
+                    else:
+                        l.info("Remaining time %f", time_limit - total_simulation_time)
 
             # Combine the next_generation with the previous population
             self.toolbox.merge_populations(self.population, previous_population)
@@ -507,7 +534,7 @@ class DeapTestGeneration:
                 executed_test.fitness.values = (fitness_values, )
                 l.info('Evaluating test: {}/{} - {} - {}'.format(idx + 1, len(self.population), fitness_values, reason))
                 total_evaluation_time += self.end_evaluation_clock()
-
+                total_simulation_time += executed_test.execution.simulation_time
                 # Dumping of the population happens ONLY later
                 yield ('test_executed', (executed_test))
 
@@ -516,18 +543,26 @@ class DeapTestGeneration:
                     l.debug("The search achieved its goal. Stop.")
                     yield ('goal_achieved', (executed_test, self.population))
 
-                if self.get_wall_time_clock() >= time_limit:
-                    l.info("Enforcing time limit")
-                    # Notify the "caller" about ending the generation.
-                    yield ('time_limit_reached', (self.population))
+                if not use_simulation_time:
+                    if self.get_wall_time_clock() >= time_limit:
+                        l.info("Enforcing time limit")
+                        # Notify the "caller" about ending the generation.
+                        yield ('time_limit_reached', (self.population))
+                    else:
+                        l.info("Remaining time %f", time_limit - self.get_wall_time_clock())
                 else:
-                    l.info("Remaining time %f", time_limit - self.get_wall_time_clock() )
+                    if total_simulation_time >= time_limit:
+                        l.info("Enforcing time limit")
+                        # Notify the "caller" about ending the generation.
+                        yield ('time_limit_reached', (self.population))
+                    else:
+                        l.info("Remaining time %f", time_limit - total_simulation_time)
 
-            # TODO What about test EXECUTION time?
-            l.debug("Total Time Spent in Evaluating Tests {}", str(total_evaluation_time))
-            l.debug("Total Time Spent in Generating Tests {}", str(total_evol_time))
+            l.info("Total Time Spent in Evaluating Tests " + str(total_evaluation_time))
+            l.info("Total Time Spent in Generating Tests " + str(total_evol_time))
+            l.info("Total Time Spent in Executing Tests (Simulation time) " + str(total_simulation_time))
 
-            yield ('finish_evolution', (self.population, total_evol_time, total_evaluation_time ))
+            yield ('finish_evolution', (self.population, total_evol_time, total_evaluation_time, total_simulation_time))
 
         # Notify that we run all the generations and we can stop the search
         yield ('budget_limit_reached', (self.population)) #, total_evol_time, total_evaluation_time))

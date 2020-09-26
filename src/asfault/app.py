@@ -96,13 +96,15 @@ def kill_beamng_after_evolve(result, **kwargs):
     kill_beamng()
 
 
+# Deprecated. Use EXT also for BEAMNG.AI !
 @evolve.command()
 @click.option('--seed', default=milliseconds())
 @click.option('--generations', default=10)
 @click.option('--render', is_flag=True)
 @click.option('--show', is_flag=True)
 @click.option('--time-limit', default=math.inf)
-def bng(seed, generations, render, show, time_limit):
+@click.option('--use-simulation-time', is_flag=True)
+def bng(seed, generations, render, show, time_limit, use_simulation_time):
     l.info('Starting BeamNG.AI with seed: {}'.format(seed))
 
     # Ensure the right configurations are there
@@ -110,19 +112,19 @@ def bng(seed, generations, render, show, time_limit):
     config.ex.ai_controlled = 'true'
 
     factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show)
-    experiments.deap_experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
+    experiments.deap_experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit, use_simulation_time=use_simulation_time)
 
 
 @evolve.command()
 @click.option('--seed', default=milliseconds())
-@click.option('--generations', default=10)
+@click.option('--generations', default=math.inf)
 @click.option('--render', is_flag=True)
 @click.option('--show', is_flag=True)
 @click.option('--time-limit', default=math.inf)
+@click.option('--use-simulation-time', is_flag=True)
 @click.argument('ctrl')
-def ext(seed, generations, render, show, time_limit, ctrl):
+def ext(seed, generations, render, show, time_limit, use_simulation_time, ctrl):
     l.info('Starting external AI {} with seed: {}'.format(ctrl, seed))
-
     # Ensure the right confiruations are there
     # Do not use super-fast-time
     config.ex.max_speed = 'false'
@@ -132,7 +134,7 @@ def ext(seed, generations, render, show, time_limit, ctrl):
     # config.ex.direction_agnostic_boundary = True
 
     factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ctrl)
-    experiments.deap_experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit)
+    experiments.deap_experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit, use_simulation_time=use_simulation_time)
 
 
 @evolve.command()

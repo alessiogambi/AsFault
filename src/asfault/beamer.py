@@ -471,7 +471,7 @@ def prepare_obstacles(network):
 
 def generate_test_prefab(test):
 
-    l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
+    # l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
 
     streets = prepare_streets(test.network)
     dividers = prepare_dividers(test.network)

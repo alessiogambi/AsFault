@@ -732,6 +732,8 @@ class TestExecution:
         dic['start_time'] = execution.start_time.isoformat()
         dic['end_time'] = execution.end_time.isoformat()
 
+        dic['simulation_time'] = execution.simulation_time
+
         dic['minimum_distance'] = execution.minimum_distance
         dic['average_distance'] = execution.average_distance
         dic['maximum_distance'] = execution.maximum_distance
@@ -750,8 +752,7 @@ class TestExecution:
         if 'oobs' not in execution_dict:
             execution_dict['oobs'] = 0
         exec = TestExecution(test, execution_dict['result'], execution_dict['reason'], states, execution_dict['oobs'],
-                             dateutil.parser.parse(
-                                 execution_dict['start_time']),
+                             dateutil.parser.parse(execution_dict['start_time']),
                              dateutil.parser.parse(execution_dict['end_time']))
 
         if 'minimum_distance' in execution_dict:
@@ -765,8 +766,12 @@ class TestExecution:
             exec.seg_oob_count = execution_dict['seg_oob_count']
         if 'oob_speeds' in execution_dict:
             exec.oob_speeds = execution_dict['oob_speeds']
+        # Duplicate?
         if 'oobs' in execution_dict:
             exec.oobs = execution_dict['oobs']
+
+        if 'simulation_time' in execution_dict:
+            exec.simulation_time = execution_dict['simulation_time']
 
         return exec
 
@@ -786,6 +791,14 @@ class TestExecution:
 
         self.seg_oob_count = None
         self.oob_speeds = None
+
+        # Set this from the last state if possible
+        last_state = states[-1]
+        # TODO Maybe we need to check that timestamp is actually defined here?
+        if hasattr(last_state, 'timestamp'):
+            self.simulation_time = last_state.timestamp
+        else:
+            self.simulation_time = None
 
     # TODO This is the same as beamer.TestRunner.off_track. Consider to uniform the two !
     def off_track(self, carstate):

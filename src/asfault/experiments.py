@@ -117,7 +117,11 @@ def dump_population(evo_step, generation, population, exported_tests_gen, export
             exported_tests_exec.add(test.test_id)
 
 
-def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=True, show=False):
+def run_deap_experiment(toolbox, factory, budget=math.inf, time_limit=math.inf, use_simulation_time=True, render=True, show=False):
+    """ This function implements a generator that yields the results of each search process. In general, there might be
+    different restart of the search, but one overall budget for the experiment."""
+
+    # Setup of the experiment
     plots_dir = c.rg.get_plots_path()
 
     exported_tests_gen = set()
@@ -125,11 +129,11 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
 
     gen = DeapTestGeneration(toolbox, factory, cutoff=2 ** 64)
 
-    generation = 0
+    # Counters for the budgets
     evo_step = 0
     elapsed_time = 0
+    elapsed_simulation_time = 0
 
-    start_time = datetime.datetime.now()
 
     plotter = None
     if show:
@@ -138,31 +142,50 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
 
     # The entire process ends when the remaining budget (evolution attempts and initial population creation) is over
     # or the time limit is reached
+
     remaining_budget = budget
+    # This is either real time or simulation time
     remaining_time = time_limit
+
+    # WallClock time
+    start_time = datetime.datetime.now()
+
+    restarts = -1
+
     while True:
-
-        # This is a time difference object...
-        elapsed_time = datetime.datetime.now() - start_time
-
-        remaining_budget -= generation
-        remaining_time -= elapsed_time.total_seconds()
-
-        # Current generation
+        # Current generation for this search process
         generation = 0
 
-        if remaining_budget <= 0:
-            l.info("Generation budget is over.")
-            yield ('done', ())
+        # Update numnber of search restart
+        restarts += 1
 
+        # Update and check
+        # remaining_budget -= evo_step
+        #if remaining_budget <= 0:
+        #    l.info("Generation budget is over.")
+        #    yield ('done', ())
+
+        # Update real execution time
+        elapsed_time = datetime.datetime.now() - start_time
+
+        # Check whether limit over real time has been reached
+        if not use_simulation_time:
+            remaining_time -= elapsed_time.total_seconds()
+            if remaining_time <= 0:
+                l.info("Time budget is over. End the experiment.")
+                yield ('done', ())
+
+
+        # Configure the stats collector for this search process
         stats = tools.Statistics(key=lambda ind: ind.fitness.values)
         stats.register("avg", numpy.mean)
         stats.register("std", numpy.std)
         stats.register("min", numpy.min)
         stats.register("max", numpy.max)
 
-        # This is the search cycle. Every time it restarts we decrease the generation budget
-        for step, data in gen.evolve_suite(remaining_budget, time_limit=remaining_time):
+        # This loop is the actual search process.
+        for step, data in gen.evolve_suite(remaining_budget, time_limit=remaining_time, use_simulation_time=use_simulation_time):
+
             evo_step += 1
 
             if plotter:
@@ -188,7 +211,7 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
                 l.info("%s", stats.compile(population))
                 yield ('done', ())
 
-
+            # TODO Is this still a thing?
             elif step == 'budget_limit_reached':
                 l.info("Enforcing generation limit. Stopping the search")
                 population = data
@@ -221,7 +244,7 @@ def run_deap_experiment(toolbox, factory, budget, time_limit=math.inf, render=Tr
 
             # An evolution loop is done and a next one is about to begin so we need to log the data about execti
             elif step == 'finish_evolution':
-                population, total_evol, total_eval = data
+                population, total_evol, total_eval, total_simulation_time = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
                 l.warning("Evolution step %d is finished", generation)
                 l.warning("Population is : %s", ''.join([str(test.test_id) for test in population]))
@@ -249,7 +272,7 @@ def wrap_test_into_individual(ind_class, road_test):
     else:
         return None
 
-def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=False, ):
+def deap_experiment(seed, budget, factory, time_limit=-1, use_simulation_time=True, render=False, show=False):
 
     # Ensure we use the provided seed for repeatability
     random.seed(seed)
@@ -315,8 +338,14 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
     assert time_limit > 0, "Time limit cannot be negative"
     if time_limit is not math.inf:
         l.info('Time limit will be enforced at: {}'.format(time_limit))
+
+        if use_simulation_time:
+            l.info("Time limit enforced on Simulation Time")
+        else:
+            l.info("Time limit enforced on Wallclock Time")
     else:
         l.info('No time limit will be enforced')
+
 
     # Register the fitness function
     if c.ev.evaluator == 'unique_lanedist':
@@ -443,7 +472,7 @@ def deap_experiment(seed, budget, factory, time_limit=-1, render=False, show=Fal
         pass
 
     # This report the result of a single evolution step to be logged so fitness and such can be seen
-    for status, data in run_deap_experiment(toolbox, factory, budget, time_limit=time_limit, render=render, show=show):
+    for status, data in run_deap_experiment(toolbox, factory, budget, time_limit=time_limit, use_simulation_time=use_simulation_time, render=render, show=show):
         if status == 'done':
             break
         # out_file = c.rg.get_results_path()
