@@ -153,9 +153,12 @@ class MockRunner:
 
     def run(self):
         now = datetime.datetime.now()
-        return TestExecution(self.test, random.random(), REASON_GOAL_REACHED, [],
+        test_execution = TestExecution(self.test, random.random(), REASON_GOAL_REACHED, [],
                              random.randint(0, 5), now, now,
                              minimum_distance=0, average_distance=0.5, maximum_distance=1.0)
+        test_execution.simulation_time = random.randint(10, 12)
+        return test_execution
+
 
     def close(self):
         pass

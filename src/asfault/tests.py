@@ -793,12 +793,13 @@ class TestExecution:
         self.oob_speeds = None
 
         # Set this from the last state if possible
-        last_state = states[-1]
-        # TODO Maybe we need to check that timestamp is actually defined here?
-        if hasattr(last_state, 'timestamp'):
-            self.simulation_time = last_state.timestamp
-        else:
-            self.simulation_time = None
+        if len(states) > 0:
+            last_state = states[-1]
+            # TODO Maybe we need to check that timestamp is actually defined here?
+            if hasattr(last_state, 'timestamp'):
+                self.simulation_time = last_state.timestamp
+            else:
+                self.simulation_time = None
 
     # TODO This is the same as beamer.TestRunner.off_track. Consider to uniform the two !
     def off_track(self, carstate):

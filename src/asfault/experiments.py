@@ -409,12 +409,13 @@ def deap_experiment(seed, budget, factory, time_limit=-1, use_simulation_time=Tr
         approach implemented by AsFault"""
         if len(current_population) < target_pop_size:
             l.debug("Pad current population with best individuals of previous population")
+
             # This should be already sorted
             previous_population = sorted(previous_population, key=lambda ind: sum(ind.fitness.values), reverse=True)
 
             while len(current_population) < target_pop_size:
-                elite = previous_population.population[0]
-                del previous_population.population[0]
+                elite = previous_population[0]
+                del previous_population[0]
                 if elite not in current_population:
                     l.debug("Promoting {} to current population", elite.test_id)
                     current_population.append(elite)
