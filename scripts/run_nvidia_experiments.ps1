@@ -7,11 +7,14 @@ Param (
 $generations=1000
 
 # $wrapperScript="C:\LuganoPassau\.venv\Scripts\python.exe C:\LuganoPassau\asfault\nvidia_ai.py"
-$wrapperScript="C:\illumination\.venv\Scripts\python.exe C:\illumination\ai_drive\dave2.py"
+$wrapperScript="C:\illumination\.venv\Scripts\python.exe C:\illumination\ai_drive\dave2.py " #--debug"
 
 dir $experimentsDir -Directory |
 Foreach-Object {
 	$experiment = $_.FullName
+
+    # Use the folder name to configure nvidia output-to 
+    $wrapperScript="$wrapperScript --output-to $_"
 
     # Check if this experiments already ran, hence produced a log file
     $log = "$($experiment)\experiment.log"
@@ -33,7 +36,7 @@ Foreach-Object {
             
             # Execute the experiment from the right folder
             #cd C:\Users\Alessio\AsFault\
-            C:\Users\Alessio\AsFault\.alessio\Scripts\python.exe C:\Users\Alessio\AsFault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --render $wrapperScript
+            C:\Users\Alessio\AsFault\.alessio\Scripts\python.exe C:\Users\Alessio\AsFault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --use-simulation-time --render $wrapperScript
             #cd C:\Users\Alessio\AsFault\scripts
         # }
     }
