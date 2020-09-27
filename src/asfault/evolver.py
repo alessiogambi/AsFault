@@ -567,4 +567,4 @@ class DeapTestGeneration:
         # Notify that we run all the generations and we can stop the search
         yield ('budget_limit_reached', (self.population)) #, total_evol_time, total_evaluation_time))
 
-from asfault.selectors import *
+from asfault.mateselectors import *

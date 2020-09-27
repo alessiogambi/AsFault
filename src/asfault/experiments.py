@@ -4,7 +4,7 @@ from asfault.beamer import *
 from asfault.evolver import *
 from asfault.plotter import *
 from asfault.tests import *
-from asfault.selectors import *
+from asfault.mateselectors import *
 from asfault.search_stoppers import *
 
 import numpy
