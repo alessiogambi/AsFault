@@ -9,6 +9,17 @@ MAX_GOAL_ANGLE = 179
 ANCHOR_OFFSET = 0.05
 
 
+def generate_networks(bounds, seeds):
+    ret = []
+    while seeds:
+        seed = seeds.pop()
+        gen = RoadGenerator(bounds, seed)
+        while gen.grow() != RoadGenerator.done:
+            continue
+        ret.append(gen.network)
+    return ret
+
+
 def dummy_lanes(start_id, count):
     ret = []
     for lane_id in range(start_id, start_id + count):
@@ -23,11 +34,7 @@ class RoadGenerator:
     done = 0
     shrank = 1
 
-    def __init__(self, bounds, seed):
-        self.seed = seed
-        self.rng = random.Random()
-        self.rng.seed(seed)
-
+    def __init__(self, bounds):
         self.extension_stack = []
         self.available_ext = {}
         self.last_ext_key = {}
@@ -58,7 +65,7 @@ class RoadGenerator:
 
     def random_start_goal(self, bounds):
         boundary_line = LineString(bounds.exterior)
-        anchor_inter = self.rng.uniform(0.0, 1.0)
+        anchor_inter = random.uniform(0.0, 1.0)
         anchor = boundary_line.interpolate(anchor_inter, normalized=True)
         centre = bounds.centroid
         anchor_vec = anchor - centre
@@ -111,7 +118,7 @@ class RoadGenerator:
 
         available = self.available_ext[ext_point]
         if available:
-            fac_key, factory = self.rng.sample(available.items(), 1)[0]
+            fac_key, factory = random.sample(available.items(), 1)[0]
             l.debug('Extending with: %s', fac_key)
             self.last_ext_key[ext_point] = fac_key
             assert factory
@@ -237,12 +244,3 @@ class RoadGenerator:
                 self.network.remove_node(extension)
 
 
-def generate_networks(bounds, seeds):
-    ret = []
-    while seeds:
-        seed = seeds.pop()
-        gen = RoadGenerator(bounds, seed)
-        while gen.grow() != RoadGenerator.done:
-            continue
-        ret.append(gen.network)
-    return ret

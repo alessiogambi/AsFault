@@ -145,7 +145,7 @@ $ThisPrefab = new SimGroup() {
     };
     {% endfor %}
 
-    new BeamNGVehicle(egovehicle) {
+    new BeamNGVehicle(ego_vehicle) {
         JBeam = "etk800";
         color = "White";
         colorPalette0 = "White";

@@ -204,8 +204,8 @@ class TestPlotter:
                 path_polyline = affinity.translate(
                     path_polyline, xoff=x_off, yoff=0)
             self.trace_path_polyline(test, path_polyline)
-        if test.execution:
-            pass
+        # if test.execution:
+        #     pass
             # trace = test.execution.states
             # self.plot_car_trace(trace)
 
