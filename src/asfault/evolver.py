@@ -310,6 +310,8 @@ class DeapTestGeneration:
                 test.execution = execution
                 # Pass the result back
                 yield test
+            else:
+                l.info("Already executed %s", test)
 
     def spawn_test(self, bounds, seed):
         network = generate_networks(bounds, [seed])[0]
@@ -385,7 +387,7 @@ class DeapTestGeneration:
             if self.toolbox.stop_search(executed_test):
                 l.info("The search achieved its goal. Stop.")
                 # If we return at this point, the loop will not be executed
-                yield ('goal_achieved', (executed_test, self.population))
+                yield ('goal_achieved', (executed_test, self.population, total_simulation_time))
 
             if not use_simulation_time:
                 if self.get_wall_time_clock() >= time_limit:
@@ -454,15 +456,15 @@ class DeapTestGeneration:
                     children, aux = self.toolbox.mate(mom, dad)
 
                     if children:
-                        l.debug('Cross-over produced %s children', len(children))
+                        l.info('Cross-over produced %s children', len(children))
 
                         for idx, child in zip([mom_idx, dad_idx], children):
                             del child.fitness.values
                             offspring[idx] = child
-                            l.debug("Cross-over generated child {} which replaced parent({}){}", child.test_id, idx,
+                            l.info("Cross-over generated child {} which replaced parent({}){}", child.test_id, idx,
                                     offspring[idx].test_id)
                     else:
-                        l.debug('Cross-over did not produce any valid children')
+                        l.info('Cross-over did not produce any valid children')
                 else:
                     l.debug("Did not mate ({}){} and ({}){} ", mom_idx, mom.test_id, dad_idx, dad.test_id)
 
@@ -509,7 +511,7 @@ class DeapTestGeneration:
                 # Has the execution reached its final goal?
                 if self.toolbox.stop_search(executed_test):
                     l.debug("The search achieved its goal. Stop.")
-                    yield ('goal_achieved', (executed_test, self.population))
+                    yield ('goal_achieved', (executed_test, self.population, total_simulation_time))
 
                 if not use_simulation_time:
                     if self.get_wall_time_clock() >= time_limit:
@@ -544,7 +546,7 @@ class DeapTestGeneration:
                 # Has the execution reached its final goal?
                 if self.toolbox.stop_search(executed_test):
                     l.debug("The search achieved its goal. Stop.")
-                    yield ('goal_achieved', (executed_test, self.population))
+                    yield ('goal_achieved', (executed_test, self.population, total_simulation_time))
 
                 if not use_simulation_time:
                     if self.get_wall_time_clock() >= time_limit:
