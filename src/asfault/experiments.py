@@ -174,10 +174,7 @@ def run_deap_experiment(toolbox, factory, budget=math.inf, time_limit=math.inf, 
             if remaining_time <= 0:
                 l.info("Time budget is over. End the experiment.")
                 yield ('done', ())
-        else:
-            if remaining_time <= 0:
-                l.info("Time budget is over. End the experiment.")
-                yield ('done', ())
+
 
         # Configure the stats collector for this search process
         stats = tools.Statistics(key=lambda ind: ind.fitness.values)
@@ -211,8 +208,7 @@ def run_deap_experiment(toolbox, factory, budget=math.inf, time_limit=math.inf, 
                 l.info("Enforcing time limit. Stopping the search")
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-                # This is broken
-                # l.info("%s", stats.compile(population))
+                l.info("%s", stats.compile(population))
                 yield ('done', ())
 
             # TODO Is this still a thing?
@@ -220,23 +216,17 @@ def run_deap_experiment(toolbox, factory, budget=math.inf, time_limit=math.inf, 
                 l.info("Enforcing generation limit. Stopping the search")
                 population = data
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-                # TODO This fails for some reason
-                # l.info("%s", stats.compile(population))
+                l.info("%s", stats.compile(population))
                 yield ('done', ())
 
             elif step == 'goal_achieved':
                 l.info("Search goal achieved")
-                executed_test, population, total_simulation_time = data
-
-                # Update time limit if needed
-                if use_simulation_time:
-                    remaining_time -= total_simulation_time
-
+                _, population = data
                 # Before computing the statistics of the final population we need to remove invalid individuals
                 population = [test for test in population if test.fitness.valid]
 
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
-                # l.info("%s", stats.compile(population))
+                l.info("%s", stats.compile(population))
 
                 if c.ev.restart_search:
                     l.warning("Restart the search")
@@ -258,7 +248,7 @@ def run_deap_experiment(toolbox, factory, budget=math.inf, time_limit=math.inf, 
                 dump_population(evo_step, generation, population, exported_tests_gen, exported_tests_exec, render)
                 l.warning("Evolution step %d is finished", generation)
                 l.warning("Population is : %s", ''.join([str(test.test_id) for test in population]))
-                # l.warning("Statistics %s", stats.compile(population))
+                l.warning("Statistics %s", stats.compile(population))
                 generation += 1
             else:
                 l.error("Unknown step %s - %s ", step, data)

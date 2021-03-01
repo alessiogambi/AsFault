@@ -25,8 +25,7 @@ from shapely.geometry import box
 from multiprocessing import Process
 
 from beamngpy import BeamNGpy, Scenario
-from asfault.oob_monitor import OutOfBoundsMonitor
-from asfault.road_polygon import RoadPolygon
+
 
 SCENARIOS_DIR = 'scenarios'
 
@@ -472,7 +471,7 @@ def prepare_obstacles(network):
 
 def generate_test_prefab(test):
 
-    #l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
+    # l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
 
     streets = prepare_streets(test.network)
     dividers = prepare_dividers(test.network)
@@ -832,8 +831,7 @@ class TestRunner:
             l.info('Ending test due to vehicle reaching the goal.')
             return RESULT_SUCCESS, REASON_GOAL_REACHED
 
-        #off_track = self.off_track(state)
-        off_track = self.off_track_dj_like(state)
+        off_track = self.off_track(state)
 
         if off_track:
             if not self.is_oob:
@@ -923,18 +921,6 @@ class TestRunner:
                 return False
 
         return False
-
-    def off_track_dj_like(self, carstate):
-        network = carstate.test.network
-        street = prepare_streets(network)
-        nodes = street[0]['nodes']
-        _nodes = []
-        for node in nodes:
-            _nodes.append((node['x'], node['y'], node['z'], node['width']))
-        car_pose = (carstate.pos_x, carstate.pos_y, carstate.pos_z)
-        oob_monitor = OutOfBoundsMonitor(RoadPolygon.from_nodes(_nodes), car_pose, None)
-        is_oob, _, _, _ = oob_monitor.get_oob_info()
-        return is_oob
 
     def vehicle_damaged(self, carstate):
         return carstate.damage > 10
