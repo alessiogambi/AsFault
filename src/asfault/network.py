@@ -973,10 +973,14 @@ class NetworkLayout:
         if len(boundary_nodes) > 1:
             options = set()
             for left, right in itertools.combinations(boundary_nodes, 2):
-                if self.is_reachable(left, right):
+                _left = int(NetworkNode.to_dict(left)['seg_id'])
+                _right = int(NetworkNode.to_dict(right)['seg_id'])
+                if self.is_reachable(left, right) and _left < _right:
                     options.add((left, right))
-                if self.is_reachable(right, left):
+                    #print(_left, _right)
+                if self.is_reachable(right, left) and _right < _left:
                     options.add((right, left))
+                    #print(_right, _left)
             return options
 
         return []

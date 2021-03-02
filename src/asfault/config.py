@@ -114,7 +114,7 @@ class EvolutionConfig:
     POP_SIZE = 25
     MUT_CHANCE = 0.05
     INTRO_CHANCE = 0.15
-    EVALUATOR = 'lanedist'
+    EVALUATOR = None # 'lanedist'
     SELECTOR =  None # 'tournament'
     ESTIMATOR = None # 'length'
     JOIN_PROBABILITY = 0.5 # REPLACE THIS WITH CROSSOVER_PROBABILITY
@@ -369,8 +369,7 @@ class ExecutionConfig:
     STANDSTILL_THRESHOLD = 120
     DONT_STOP_AT_OBE = False
     OBSERVATION_INTERVAL = 10
-    OOB_MONITOR = 'like_dj'
-    ONE_WAY_DRIVE = 'true'
+
     CUSTOM_BEAMNG_TEMPLATE = None
 
 
@@ -403,8 +402,6 @@ class ExecutionConfig:
         ret['observation_interval'] = ExecutionConfig.OBSERVATION_INTERVAL
 
         ret['custom_beamng_template'] = ExecutionConfig.CUSTOM_BEAMNG_TEMPLATE
-        ret['oob_monitor'] = ExecutionConfig.OOB_MONITOR
-        ret['one_way_drive'] = ExecutionConfig.ONE_WAY_DRIVE
 
         return ret
 

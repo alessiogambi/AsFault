@@ -28,6 +28,7 @@ from beamngpy import BeamNGpy, Scenario
 from asfault.oob_monitor import OutOfBoundsMonitor
 from asfault.road_polygon import RoadPolygon
 
+
 SCENARIOS_DIR = 'scenarios'
 
 PREFAB_FILE = 'asfault.prefab'
@@ -472,7 +473,7 @@ def prepare_obstacles(network):
 
 def generate_test_prefab(test):
 
-    #l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
+    # l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
 
     streets = prepare_streets(test.network)
     dividers = prepare_dividers(test.network)
@@ -832,7 +833,7 @@ class TestRunner:
             l.info('Ending test due to vehicle reaching the goal.')
             return RESULT_SUCCESS, REASON_GOAL_REACHED
 
-        #off_track = self.off_track(state)
+        # off_track = self.off_track(state)
         off_track = self.off_track_dj_like(state)
 
         if off_track:

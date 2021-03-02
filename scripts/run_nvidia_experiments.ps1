@@ -36,7 +36,7 @@ Foreach-Object {
             
             # Execute the experiment from the right folder
             #cd C:\Users\Alessio\AsFault\
-            C:\Users\Aurora\AsFault\venv\Scripts\python.exe C:\Users\Aurora\AsFault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --use-simulation-time --render $wrapperScript
+            D:\Tara\src\asfault\venv\Scripts\python.exe D:\Tara\src\asfault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --use-simulation-time --render $wrapperScript
             #cd C:\Users\Alessio\AsFault\scripts
         }
     }

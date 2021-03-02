@@ -130,7 +130,7 @@ def main(MAX_SPEED):
 
 
     # Connect to running beamng
-    beamng = BeamNGpy('localhost', 64256, home='C://Users//Aurora//Desktop//beamng//trunk')
+    beamng = BeamNGpy('localhost', 64256, home='C://Users//Alessio//BeamNG.research_unlimited//trunk')
     bng = beamng.open(launch=False)
     try:
         bng.set_deterministic()  # Set simulator to be deterministic

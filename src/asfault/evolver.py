@@ -478,7 +478,7 @@ class DeapTestGeneration:
                     mutated = self.toolbox.mutate(mutable)
 
                     if mutated and mutated is not None:
-                        l.debug('Mutation produced {}', mutated.test_id)
+                        l.info('Mutation produced %d', mutated.test_id)
                         del mutated.fitness.values
                         offspring[mut_idx] = mutated
                     else:
@@ -496,7 +496,7 @@ class DeapTestGeneration:
 
             # Execute newly generated tests
             # Execute the tests one by one and evaluate their fitness
-            l.debug("Running newly generated tests")
+            l.info("Running newly generated tests")
             for idx, executed_test in enumerate(self.run_suite()):
                 self.beg_evaluation_clock()
                 l.debug("Evaluating execution of test %s", executed_test.test_id)
