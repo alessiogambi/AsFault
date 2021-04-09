@@ -1,7 +1,8 @@
 import dateutil.parser
 
 from collections import defaultdict
-
+from self_driving.oob_monitor import OutOfBoundsMonitor, OutOfBoundsMonitorAsFault
+from self_driving.road_polygon import RoadPolygon
 from asfault.network import *
 
 TEST_ID = 0
@@ -803,17 +804,16 @@ class TestExecution:
 
     # TODO This is the same as beamer.TestRunner.off_track. Consider to uniform the two !
     def off_track(self, carstate):
-        distance = carstate.get_centre_distance()
-        # TODO Why lane_width is under Evolution and not Execution configuration?
-        if distance > c.ev.lane_width / 2.0:
-            # Car is off track
-            if distance >= c.ev.lane_width / 2.0 + c.ev.tolerance:
-                return True
-            else:
-                l.debug("Car is off track but within the tolerance value. ")
-                return False
-
-        return False
+        network = carstate.test.network
+        street = prepare_streets(network)
+        nodes = street[0]['nodes']
+        _nodes = []
+        for node in nodes:
+            _nodes.append((node['x'], node['y'], node['z'], node['width']))
+        car_pose = (carstate.pos_x, carstate.pos_y, carstate.pos_z)
+        oob_monitor = OutOfBoundsMonitorAsFault(RoadPolygon.from_nodes(_nodes), car_pose, None)
+        is_oob, _, _, _ = oob_monitor.get_oob_info()
+        return is_oob
 
     def count_oobs(self):
         oob_lens = []

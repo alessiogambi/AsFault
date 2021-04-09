@@ -6,7 +6,8 @@ import signal
 import socket
 import subprocess
 import sys
-from time import sleep, time
+from time import sleep
+import time
 import os
 import json
 
@@ -24,9 +25,23 @@ from shapely.geometry import box
 # Required to force BeamNGpy to reopen the socket once the process is done
 from multiprocessing import Process
 
-from beamngpy import BeamNGpy, Scenario
-from asfault.oob_monitor import OutOfBoundsMonitor
-from asfault.road_polygon import RoadPolygon
+from self_driving.oob_monitor import OutOfBoundsMonitor
+from self_driving.road_polygon import RoadPolygon
+from self_driving.nvidia_prediction import NvidiaPrediction
+
+import traceback
+from typing import Tuple
+
+from self_driving.beamng_brewer import BeamNGBrewer, BeamNGCarCameras
+# maps is a global variable in the module, which is initialized to Maps()
+from self_driving.beamng_tig_maps import maps, LevelsFolder
+from self_driving.beamng_waypoint import BeamNGWaypoint
+from self_driving.simulation_data import SimulationDataRecord, SimulationData
+from self_driving.simulation_data_collector import SimulationDataCollector
+import self_driving.utils as us
+from self_driving.vehicle_state_reader import VehicleStateReader
+
+
 
 
 SCENARIOS_DIR = 'scenarios'
@@ -471,174 +486,11 @@ def prepare_obstacles(network):
     return slots
 
 
-def generate_test_prefab(test):
-
-    # l.warning("SETTING UP TESTS: " + str(TEMPLATE_ENV.list_templates()))
-
-    streets = prepare_streets(test.network)
-    dividers = prepare_dividers(test.network)
-    l_boundaries, r_boundaries = prepare_boundaries(test.network)
-    path = test.path
-    if c.ex.direction_agnostic_boundary and len(path) > 1:
-        beg = path[0]
-        nxt = path[1]
-        if test.network.parentage.has_edge(nxt, beg):
-            l_boundaries, r_boundaries = r_boundaries, l_boundaries
-    waypoints = prepare_waypoints(test)
-    obstacles = prepare_obstacles(test.network)
-    test_dict = {'start': {}, 'goal': {}}
-    if 'start' in test_dict and test_dict['start']:
-        test_dict['start'] = {'x': test.start.x, 'y': test.start.y, 'z': 0.01}
-    else:
-        test_dict['start'] = {'x': 0, 'y': 0, 'z': 0.01}
-
-    if 'goal' in test_dict and test_dict['goal']:
-        test_dict['goal'] = {'x': test.goal.x, 'y': test.goal.y, 'z': 0.01}
-    else:
-        test_dict['goal'] = {'x': 0, 'y': 0, 'z': 0.01}
-
-
-
-    if c.ex.custom_beamng_template:
-        l.warning("USING CUSTOM PREFAB TEMPLATE %s", c.ex.custom_beamng_template)
-        prefab = TEMPLATE_ENV.get_template(c.ex.custom_beamng_template).render(streets=streets,
-                                                           dividers=dividers,
-                                                           l_boundaries=l_boundaries,
-                                                           r_boundaries=r_boundaries,
-                                                           waypoints=waypoints,
-                                                           obstacles=obstacles,
-                                                           test=test_dict)
-
-    else:
-        prefab = TEMPLATE_ENV.get_template(PREFAB_FILE).render(streets=streets,
-                                                           dividers=dividers,
-                                                           l_boundaries=l_boundaries,
-                                                           r_boundaries=r_boundaries,
-                                                           waypoints=waypoints,
-                                                           obstacles=obstacles,
-                                                           test=test_dict)
-    return prefab
-
-
-def generate_vehicle_prefab(test, vehicle):
-    test_dict = {'start': {'x': test.start.x, 'y': test.start.y, 'z': 0.5}}
-    prefab = TEMPLATE_ENV.get_template(vehicle).render(test=test_dict)
-    return prefab
-
-
-def generate_test_description(prefab):
-    desc = TEMPLATE_ENV.get_template(DESCRIPTION_FILE).render(prefab=prefab)
-    return desc
-
-
-def generate_test_lua(test, **options):
-    waypoints = prepare_waypoints(test)
-    waypoints = ['"waypoint_{}"'.format(waypoint['waypoint_id']) for waypoint
-                 in waypoints]
-    waypoints = ','.join(waypoints)
-
-    # The initial position of the car is somehow wrong as the off_track is triggered as soon as the test starts...
-    pos = get_car_origin(test)
-    carDir = get_car_direction(test)
-
-    host = options.get('host', c.ex.host)
-    port = options.get('port', c.ex.port)
-    ai_controlled = c.ex.ai_controlled
-
-    # BeamNG requires speed limit in m/s
-    speed_limit = c.ex.speed_limit / 3.6
-    speed_limit_mode = 'limit' if speed_limit > 0 else 'off'
-
-    # This control whether BeamNG can use supernatural speed for the simulation
-    max_speed = c.ex.max_speed
-    navi_graph = c.ex.navi_graph
-    risk = options.get('risk', c.ex.risk)
-    time_left = options.get('time_left', 60)
-    lua = TEMPLATE_ENV.get_template(LUA_FILE).render(test=test, host=host,
-                                                     pos=pos, carDir=carDir,
-                                                     max_speed=max_speed,
-                                                     ai_controlled=ai_controlled,
-                                                     navi_graph=navi_graph,
-                                                     port=port, risk=risk,
-                                                     waypoints=waypoints,
-                                                     time_left=time_left,
-                                                     speed_limit=speed_limit,
-                                                     speed_limit_mode=speed_limit_mode)
-    return lua
-
-
-def write_scenario_prefab(test_dir, test):
-    scenarios_dir = get_scenarios_dir(test_dir)
-    prefab_file = os.path.join(scenarios_dir, ''.join(["asfault", str(test.test_id), ".prefab"]))
-    prefab = generate_test_prefab(test)
-    with open(prefab_file, 'w') as out:
-        out.write(prefab)
-    return prefab_file
-
-
-def delete_scenario_prefab(test_dir, test):
-    scenarios_dir = get_scenarios_dir(test_dir)
-    prefab_file = os.path.join(scenarios_dir, ''.join(["asfault", str(test.test_id), ".prefab"]))
-    os.remove(prefab_file)
-
-def write_scenario_empty_prefab(test_dir):
-    network = NetworkLayout(None)
-    test = RoadTest(-1, network, None, None)
-    return write_scenario_prefab(test_dir, test)
-
-
-def write_scenario_description(test_dir, test, prefab):
-    scenarios_dir = get_scenarios_dir(test_dir)
-    if not os.path.exists(scenarios_dir):
-        os.makedirs(scenarios_dir)
-    # description_file = os.path.join(scenarios_dir, DESCRIPTION_FILE)
-    description_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.json']))
-    description = generate_test_description(prefab)
-    with open(description_file, 'w') as out:
-        out.write(description)
-    return description_file
-
-def delete_scenario_description(test_dir, test):
-    scenarios_dir = get_scenarios_dir(test_dir)
-    description_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.json']))
-    os.remove(description_file)
-
-def write_scenario_lua(test_dir, test, **options):
-    scenarios_dir = get_scenarios_dir(test_dir)
-    # lua_file = os.path.join(scenarios_dir, LUA_FILE)
-    lua_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.lua']))
-    lua = generate_test_lua(test, **options)
-    with open(lua_file, 'w') as out:
-        out.write(lua)
-    return lua_file
-
-def delete_scenario_lua(test_dir, test, **options):
-    scenarios_dir = get_scenarios_dir(test_dir)
-    lua_file = os.path.join(scenarios_dir, ''.join(['asfault', str(test.test_id), '.lua']))
-    os.remove(lua_file)
-
-def start_default_controller():
-        """ Simply connect a BeamNGpy so the annoying reconnect goes away"""
-        beamng = BeamNGpy('localhost', 64256)
-        bng = beamng.open(launch=False)
-        # Note that we cannot call stop otherwise the annoyng message will not go away...
-        while True:
-            sleep(10)
-
-def load_scenario(scenario_level, scenario_name):
-    """Load a scenario into a running BeamNG"""
-    bng = BeamNGpy('localhost', 64256)
-    try:
-        bng = bng.open(launch=False)
-        scenario = Scenario(scenario_level, scenario_name)
-        scenario.bng = bng
-        scenario.find(bng)
-        bng.load_scenario(scenario)
-        sleep(10)
-        bng.start_scenario()
-    finally:
-        if bng:
-            bng.close()
+def nodes_to_coords(nodes):
+    coords = list()
+    for node in nodes:
+        coords.append([node['x'], node['y'], -28.0, node['width']])
+    return coords
 
 class TestRunner:
     def __init__(self, test, test_dir, host, port, beamng_process=None, plot=False, ctrl=None):
@@ -647,17 +499,6 @@ class TestRunner:
         self.port = port
         self.plot = plot
         self.test_dir = test_dir
-
-        # Ensure only one server is running to accept the client?
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server.bind((self.host, self.port))
-        self.server.listen()
-        self.client = None
-
-        # This identifies a running BeamNG
-        self.process = beamng_process
-        self.start_and_kill_beamng = self.process is None
-        l.debug("Always Start and Kill BeamNG" if self.start_and_kill_beamng else "Share Running BeamNG")
 
         self.oobs = 0
         self.is_oob = False
@@ -683,110 +524,26 @@ class TestRunner:
         else:
             self.tracer = None
 
-        self.handlers = dict()
-        self.handlers["HELLO"] = self.hello_handler
-        self.handlers["STATE"] = self.state_handler
-
-        # Prevent this handler to trigger ext control if we have a running instance of BeamNG. In that case we manually trigger it
-        if self.start_and_kill_beamng:
-            self.handlers["RACESTART"] = self.racestart_handler
-
         self.states = []
         self.start_time = None
+        # defined another start time to not mess start_time
+        self._start_time = time.time()
         self.end_time = None
+        self.total_elapsed_time = None
+
+        self.brewer: BeamNGBrewer = None
+        self.beamng_home = c.ex.beamng_home
+        self.beamng_user = "Alessio"
+
+        self.oob_tolerance = 0.95
+        self.model = None
+        self.model_file = c.ex.model_file
+
 
     def normalise_path(self, path):
         path = path.replace('\\', '/')
         path = path[path.find('levels'):]
         return path
-
-    def accept_client(self, timeout=None):
-        while True:
-            if timeout:
-                self.server.settimeout(timeout)
-            con, addr = self.server.accept()
-            l.debug('Accepted new client from %s', addr)
-            self.client = con
-            break
-        return True
-
-    @staticmethod
-    def kill_process(process):
-        if process:
-            if os.name == 'nt':
-                # Maybe wait 1 or 2 sec?
-                #l.warning("Gracefully ask the program to stop Using TASKKILL")
-                #subprocess.call(['taskkill', '/PID', str(process.pid)])
-                #sleep(10)
-                # Maybe wait 1 or 2 sec?
-                #l.warning("KILL PROCESS Using TASKKILL")
-                subprocess.call(['taskkill', '/F', '/T', '/PID', str(process.pid)])
-            else:
-                l.warning("KILL PROCESS OS KILL SIGTERM")
-                os.kill(process.pid, signal.SIGTERM)
-            return True
-        return False
-
-    @staticmethod
-    def start_shared_beamng(ctrl):
-
-        """Start a basic instance of beamng. We will load scenarios when running the experiments"""
-        # This enables the use of BeamNG.py, which means BNG will not run smoothly...
-        lua = "registerCoreModule('util/researchGE')"
-        userpath = c.ex.get_user_dir()
-        call = [c.ex.beamng_executable, '-userpath', userpath, '-lua', lua, '-console']
-        l.debug('Calling BeamNG: %s', call)
-        return subprocess.Popen(call)
-
-    def start_beamng(self, scenario_file):
-        scenario_file, _ = os.path.splitext(scenario_file)
-        scenario_file += '.json'
-        lua = "require('scenario/scenariosLoader').startByPath('{}')"
-        lua = lua.format(scenario_file)
-        if self.ctrl:
-            # ALESSIO: This changed since the original version of AsFault
-            lua += ";registerCoreModule('util/researchGE')"
-        userpath = c.ex.get_user_dir()
-
-        call = [c.ex.beamng_executable, '-userpath', userpath, '-lua', lua, '-console']
-        l.debug('Calling BeamNG: %s', call)
-
-        self.process = subprocess.Popen(call)
-
-    def kill_beamng(self):
-        if self.process:
-            TestRunner.kill_process(self.process)
-        self.process = None
-        return True
-
-    def send_message(self, message):
-        if not self.client:
-            return
-
-        l.debug('Sending client message: %s', message)
-        message = '{}\n'.format(message)
-        message = bytes(message, 'ascii')
-        self.client.send(message)
-
-    def hello_handler(self, param):
-        l.debug('Got HELLO from loaded beamng scenario, responding with HELLO')
-        self.send_message('HELLO:true')
-        return None, None
-
-    def racestart_handler(self, param):
-        self.race_started = True
-        if self.ctrl:
-            self.start_controller()
-            # Given enough time to asfault to move the car in the initial position while the controller plan the driving
-            # TODO This is not really reliable, but I cannot find anything better...
-            sleep(10)
-            l.debug("Test Start")
-        else:
-            l.debug("Starting Dummy Controller in a Separate Process")
-            self.dummy_controller = Process(target=start_default_controller, args=())
-            self.dummy_controller.start()
-
-        return None, None
 
     def check_min_speed(self, state):
         if not self.race_started:
@@ -799,99 +556,6 @@ class TestRunner:
         else:
             self.too_slow = 0
         return False
-
-    def state_handler(self, param):
-        """ Dedides what to do depending on the state of the experiment"""
-
-        # To synchronize AsFault and BeamNG.research we must rely on some heuristic. The issue is that the states
-        #   are send over even if the car is still outside the road. So we need to give the simulator some time to update
-        #   otherwise we will automatically log an OBE. Not sure why the car does not spawn in the road, tho
-
-        # l.info("State handler: " + param)
-        # This is a JSON Object: Parse is
-        data = json.loads(param)
-
-        state = CarState.from_dict(self.test, data)
-
-        # TODO 8 is totally subjective and probably too long...
-        if state.timestamp < 8:
-            # l.info("Sky warmup" + str(state.timestamp) + str(state))
-            return None, None
-
-        # Note: states are refreshed with Frame Rate not logical time ! So it might happend we get the same states
-        #   multiple times
-        if state not in self.states:
-            self.states.append(state)
-        else:
-            l.info("Duplicate state detected. Discard it" + str(state))
-
-        if self.tracer:
-            self.tracer.update_carstate(state)
-
-        finished = self.goal_reached(state)
-        if finished:
-            l.info('Ending test due to vehicle reaching the goal.')
-            return RESULT_SUCCESS, REASON_GOAL_REACHED
-
-        # off_track = self.off_track(state)
-        off_track = self.off_track_dj_like(state)
-
-        if off_track:
-            if not self.is_oob:
-                l.warning('New OBE Detected')
-
-                self.is_oob = True
-                self.oobs += 1
-                if self.current_segment:
-                    seg_key = self.current_segment.key
-                    self.seg_oob_count[seg_key] += 1
-                self.oob_speeds.append(state.get_speed())
-
-                self.observed_obe_states += 1
-
-                if c.ex.dont_stop_at_obe:
-                    l.debug("Don't stop @ OBE enabled, keep going")
-                    pass
-                elif self.observed_obe_states <= c.ex.observation_interval:
-                    l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
-                    self.observed_obe_states += 1
-                else:
-                    l.info('Ending test due to vehicle going off track.')
-                    return RESULT_FAILURE, REASON_OFF_TRACK
-            else:
-                l.debug("- Observed OBE state")
-                if c.ex.dont_stop_at_obe:
-                    l.debug("Don't stop @ OBE enabled, keep going")
-                    pass
-                elif self.observed_obe_states <= c.ex.observation_interval:
-                    l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
-                    self.observed_obe_states += 1
-                else:
-                    l.info('Ending test due to vehicle going off track (did not come back on track).')
-                    return RESULT_FAILURE, REASON_OFF_TRACK
-        else:
-            self.observed_obe_states = 0
-
-            if self.is_oob and not c.ex.dont_stop_at_obe:
-                l.info('Ending test due to vehicle going off track (came back on track).')
-                return RESULT_FAILURE, REASON_OFF_TRACK
-
-            self.is_oob = False
-            self.current_segment = state.get_segment()
-
-        damaged = self.vehicle_damaged(state)
-        if damaged:
-            l.info('Ending test due to vehicle taking damage.')
-            return RESULT_FAILURE, REASON_VEHICLE_DAMAGED
-
-        standstill = self.check_min_speed(state)
-        if False and standstill:
-            l.info('Ending test due to vehicle standing still.')
-            return RESULT_FAILURE, REASON_TIMED_OUT
-
-        # Defatul behavior. Do nothing
-        return None, None
-
 
     def read_lines(self):
         self.client.settimeout(30)
@@ -910,30 +574,8 @@ class TestRunner:
         # l.info("Distance to Goal " + str(distance))
         return distance < c.ex.goal_distance
 
-    def off_track(self, carstate):
-        distance = carstate.get_centre_distance()
-        # TODO Why lane_width is under Evolution and not Execution configuration?
-        if distance > c.ev.lane_width / 2.0:
-            l.debug("Car is off track: distance %f", distance)
-
-            # Car is off track
-            if distance >= c.ev.lane_width / 2.0 + c.ev.tolerance:
-                return True
-            else:
-                l.debug("Car is off track but within the tolerance value. ")
-                return False
-
-        return False
-
-    def off_track_dj_like(self, carstate):
-        network = carstate.test.network
-        street = prepare_streets(network)
-        nodes = street[0]['nodes']
-        _nodes = []
-        for node in nodes:
-            _nodes.append((node['x'], node['y'], node['z'], node['width']))
-        car_pose = (carstate.pos_x, carstate.pos_y, carstate.pos_z)
-        oob_monitor = OutOfBoundsMonitor(RoadPolygon.from_nodes(_nodes), car_pose, None)
+    def off_track(self, nodes, vehicle_state_reader):
+        oob_monitor = OutOfBoundsMonitor(RoadPolygon.from_nodes(nodes), vehicle_state_reader)
         is_oob, _, _, _ = oob_monitor.get_oob_info()
         return is_oob
 
@@ -980,6 +622,10 @@ class TestRunner:
         l.info('This execution is allowed to run until: %s',
                self.end_time.isoformat())
 
+    def get_elapsed_time(self):
+        now = time.time()
+        return now - self._start_time
+
     def get_time_left(self):
 
         now = datetime.datetime.now()
@@ -994,94 +640,43 @@ class TestRunner:
         #return ret
 
 
-
-    def start_controller(self):
-        l.info('Calling controller process: %s', self.ctrl)
-        self.ctrl_process = subprocess.Popen(self.ctrl)
-
-    def kill_controller(self):
-        l.debug('Terminating controller process.')
-        if self.ctrl_process:
-            TestRunner.kill_process(self.ctrl_process)
-        else:
-            try:
-                if self.dummy_controller and self.dummy_controller.is_alive():
-                    self.dummy_controller.terminate()
-            except Exception as e:
-                l.error("Exception while terminating dummy controller")
-
-        self.ctrl_process = None
-
     def run(self):
         l.info('Executing Test#{} in BeamNG.drive.'.format(self.test.test_id))
         self.set_times()
 
-        prefab_file = write_scenario_prefab(self.test_dir, self.test)
-        prefab_file = self.normalise_path(prefab_file)
-
-        scenario_file = write_scenario_description(self.test_dir, self.test, prefab_file)
-        scenario_file = self.normalise_path(scenario_file)
-
-        write_scenario_lua(self.test_dir, self.test, host=self.host,
-                           port=self.port, time_left=self.get_time_left().seconds)
-
-        if self.start_and_kill_beamng:
-            self.start_beamng(scenario_file)
-        else:
-
-            l.debug("Loading scenario in a separate process")
-
-            p = Process(target=load_scenario, args=('asfault',''.join(['asfault', str(self.test.test_id)])))
-            p.start()
-            p.join()  # this blocks until the process terminates
-
-            # TODO I have no idea how this will play with BNG...
-
-            # After starting the scenario we can start the external process, which in turn will use its own BeamNGpy instance...
-            self.racestart_handler(None)
 
         # At this point one way or another asfault.lua will be connected as client to self.server
         timeout = self.get_time_left().seconds
-        accepted = self.accept_client(timeout=30)
 
-        result = None
-        reason = None
+        # TODO Not sure why we need to repeat this 2 times...
+        counter = 2
 
-        if not accepted:
-            result = RESULT_FAILURE
-            reason = REASON_SOCKET_TIMED_OUT
-
-
-        while not result:
-            for line in self.read_lines():
-                split = line.find(':')
-                if split != -1:
-                    command = line[:split]
-                    param = line[split + 1:]
-                    if command in self.handlers:
-                        handler = self.handlers[command]
-                        result, reason = handler(param)
-            if self.tracer:
-                self.tracer.pause()
-
-            # TODO Define a timeout in the logical simulaiton time as well. Internal timeout, external timeout !
-            if not result and self.timed_out():
-                l.info('Ending test execution due to vehicle timing out.')
-                result, reason = RESULT_FAILURE, REASON_TIMED_OUT
+        attempt = 0
+        sim = None
+        condition = True
+        while condition:
+            attempt += 1
+            if attempt == counter:
+                result = "ERROR"
+                reason = 'Exhausted attempts'
                 break
+            if attempt > 1:
+                self._close()
+            if attempt > 2:
+                time.sleep(5)
 
-        # At this point the scenario is finished
+            sim = self._run_simulation(self.test)
 
-        # Kill the external controller if one is running
-        self.kill_controller()
+            if sim.info.success:
+                if sim.exception_str:
+                    result = "FAIL"
+                    reason = sim.exception_str
+                else:
+                    result = "PASS"
+                    reason = 'Successful test'
+                condition = False
 
-        # Kill asfault.lua
-        self.send_message('KILL:0')
-        sleep(0.5)
-
-
-        if self.start_and_kill_beamng:
-            self.kill_beamng()
+        execution_data = sim.states
 
         self.end_time = datetime.datetime.now()
         execution = self.evaluate(result, reason)
@@ -1089,20 +684,226 @@ class TestRunner:
 
         return execution
 
+    def _is_the_car_moving(self, last_state):
+        """ Check if the car moved in the past 10 seconds """
+
+        # Has the position changed
+        if self.last_observation is None:
+            self.last_observation = last_state
+            return True
+
+        # If the car moved since the last observation, we store the last state and move one
+        if Point(self.last_observation.pos[0],self.last_observation.pos[1]).distance(Point(last_state.pos[0], last_state.pos[1])) > self.min_delta_position:
+            self.last_observation = last_state
+            return True
+        else:
+            # How much time has passed since the last observation?
+            if last_state.timer - self.last_observation.timer > 10.0:
+                return False
+            else:
+                return True
+
+    def _run_simulation(self, the_test) -> SimulationData:
+        if not self.brewer:
+            self.brewer = BeamNGBrewer(beamng_home=self.beamng_home, beamng_user=self.beamng_user)
+            self.vehicle = self.brewer.setup_vehicle()
+            self.camera = self.brewer.setup_scenario_camera()
+
+        # For the execution we need the interpolated points
+        street = prepare_streets(self.test.network)
+        nodes = nodes_to_coords(street[0]['nodes'])
+        #nodes = the_test.interpolated_points
+
+
+        brewer = self.brewer
+        brewer.setup_road_nodes(nodes)
+        beamng = brewer.beamng
+        waypoint_goal = BeamNGWaypoint('waypoint_goal', us.get_node_coords(nodes[-1]))
+
+        # TODO Make sure that maps points to the right folder !
+        if self.beamng_user is not None:
+            beamng_levels = LevelsFolder(os.path.join(self.beamng_user, 'levels'))
+            maps.beamng_levels = beamng_levels
+            maps.beamng_map = maps.beamng_levels.get_map('tig')
+            # maps.print_paths()
+
+        maps.install_map_if_needed()
+        maps.beamng_map.generated().write_items(brewer.decal_road.to_json() + '\n' + waypoint_goal.to_json())
+
+        cameras = BeamNGCarCameras()
+        vehicle_state_reader = VehicleStateReader(self.vehicle, beamng, additional_sensors=cameras.cameras_array)
+        brewer.vehicle_start_pose = brewer.road_points.vehicle_start_pose()
+
+        steps = brewer.params.beamng_steps
+        simulation_id = time.strftime('%Y-%m-%d--%H-%M-%S', time.localtime())
+        name = 'beamng_executor/sim_$(id)'.replace('$(id)', simulation_id)
+        sim_data_collector = SimulationDataCollector(self.vehicle, beamng, brewer.decal_road, brewer.params,
+                                                     vehicle_state_reader=vehicle_state_reader,
+                                                     camera=self.camera,
+                                                     simulation_name=name)
+
+        # TODO: Hacky - Not sure what's the best way to set this...
+        sim_data_collector.oob_monitor.tolerance = self.oob_tolerance
+
+        sim_data_collector.get_simulation_data().start()
+        try:
+            #start = timeit.default_timer()
+            brewer.bring_up()
+            # iterations_count = int(self.test_time_budget/250)
+            # idx = 0
+
+            brewer.bring_up()
+            from keras.models import load_model
+            if not self.model:
+                self.model = load_model(self.model_file)
+            predict = NvidiaPrediction(self.model)
+            iterations_count = 100000
+            idx = 0
+            while True:
+                idx += 1
+                if idx >= iterations_count:
+                    raise Exception('Timeout simulation ', sim_data_collector.name)
+
+                sim_data_collector.collect_current_data(oob_bb=False)
+                last_state: SimulationDataRecord = sim_data_collector.states[-1]
+                r = last_state._asdict()
+
+                data = {
+                        "timestamp": r['timer'],
+                        'pos_x': r['pos'][0],
+                        'pos_y': r['pos'][1],
+                        'pos_z': r['pos'][2],
+                        "damage": r['damage'],
+                        'steering': r['steering'],
+                        'g_x': r['gforces'][0],
+                        'g_y': r['gforces'][1],
+                        'g_z': r['gforces'][2],
+                        'vel_x': r['vel'][0],
+                        'vel_y': r['vel'][1],
+                        'vel_z': r['vel'][2]
+                }
+
+                state = CarState.from_dict(self.test, data)
+
+                if state not in self.states:
+                    self.states.append(state)
+
+                # Target point reached
+                # if points_distance(last_state.pos, waypoint_goal.position) < 8.0:
+                #     break
+
+                # assert self._is_the_car_moving(last_state), "Car is not moving fast enough " + str(sim_data_collector.name)
+
+                # assert not last_state.is_oob, "Car drove out of the lane " + str(sim_data_collector.name)
+
+                if self.tracer:
+                    self.tracer.update_carstate(state)
+
+                finished = self.goal_reached(state)
+                if finished:
+                    l.info('Ending test due to vehicle reaching the goal.')
+                    result, reason = RESULT_SUCCESS, REASON_GOAL_REACHED
+                    break
+
+                off_track = self.off_track(nodes,vehicle_state_reader)
+
+                if off_track:
+                    if not self.is_oob:
+                        l.warning('New OBE Detected')
+
+                        self.is_oob = True
+                        self.oobs += 1
+                        if self.current_segment:
+                            seg_key = self.current_segment.key
+                            self.seg_oob_count[seg_key] += 1
+                        self.oob_speeds.append(state.get_speed())
+
+                        self.observed_obe_states += 1
+
+                        if c.ex.dont_stop_at_obe:
+                            l.debug("Don't stop @ OBE enabled, keep going")
+                            pass
+                        elif self.observed_obe_states <= c.ex.observation_interval:
+                            l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                            self.observed_obe_states += 1
+                        else:
+                            l.info('Ending test due to vehicle going off track.')
+                            result, reason = RESULT_FAILURE, REASON_OFF_TRACK
+                            assert not last_state.is_oob, "Car drove out of the lane " + str(sim_data_collector.name)
+                    else:
+                        l.debug("- Observed OBE state")
+                        if c.ex.dont_stop_at_obe:
+                            l.debug("Don't stop @ OBE enabled, keep going")
+                            pass
+                        elif self.observed_obe_states <= c.ex.observation_interval:
+                            l.debug('Collecting observation of car going off track. %d left', (c.ex.observation_interval-self.observed_obe_states))
+                            self.observed_obe_states += 1
+                        else:
+                            l.info('Ending test due to vehicle going off track (did not come back on track).')
+                            result, reason = RESULT_FAILURE, REASON_OFF_TRACK
+                            break
+                else:
+                    self.observed_obe_states = 0
+
+                    if self.is_oob and not c.ex.dont_stop_at_obe:
+                        l.info('Ending test due to vehicle going off track (came back on track).')
+                        result, reason = RESULT_FAILURE, REASON_OFF_TRACK
+                        break
+
+                    self.is_oob = False
+                    self.current_segment = state.get_segment()
+
+                damaged = self.vehicle_damaged(state)
+                if damaged:
+                    l.info('Ending test due to vehicle taking damage.')
+                    result, reason = RESULT_FAILURE, REASON_VEHICLE_DAMAGED
+                    break
+
+                standstill = self.check_min_speed(state)
+                if False and standstill:
+                    l.info('Ending test due to vehicle standing still.')
+                    result, reason = RESULT_FAILURE, REASON_TIMED_OUT
+                    break
+
+                img = vehicle_state_reader.sensors['cam_center']['colour'].convert('RGB')
+                steering_angle, throttle = predict.predict(img, last_state)
+                self.vehicle.control(throttle=throttle, steering=steering_angle, brake=0)
+                beamng.step(steps)
+
+            sim_data_collector.get_simulation_data().end(success=True)
+            self.total_elapsed_time = self.get_elapsed_time()
+        
+        except Exception as ex:
+            sim_data_collector.save()
+            sim_data_collector.get_simulation_data().end(success=False, exception=ex)
+            traceback.print_exception(type(ex), ex, ex.__traceback__)
+        finally:
+            sim_data_collector.save()
+            try:
+                sim_data_collector.take_car_picture_if_needed()
+            except:
+                pass
+
+            self.end_iteration()
+
+        return sim_data_collector.simulation_data
+
+    def end_iteration(self):
+        try:
+            if self.brewer:
+                self.brewer.beamng.stop_scenario()
+        except Exception as ex:
+            traceback.print_exception(type(ex), ex, ex.__traceback__)
+
     def close(self):
-        l.debug("Closing Server")
-        ## Not sure why this is not automatically called upon finishing the execution...
-        self.server.close()
-        # TODO Add a flag to skip this step if we are running in debug...
-        # Make sure we clean up beamng scenario folders
-        self.clean_up_beamng_scenarios()
+        l.info("CLOSING EXECUTOR")
+        if self.brewer:
+            try:
+                self.brewer.beamng.close()
+            except Exception as ex:
+                traceback.print_exception(type(ex), ex, ex.__traceback__)
+            self.brewer = None
 
-    def clean_up_beamng_scenarios(self):
-        l.debug("Clean up resources")
-
-        delete_scenario_prefab(self.test_dir, self.test)
-        delete_scenario_description(self.test_dir, self.test)
-        delete_scenario_lua(self.test_dir, self.test)
 
 
 BEAMNG_PROCESS = None
@@ -1112,34 +913,6 @@ def gen_beamng_runner_factory(level_dir, host, port, plot=False, ctrl=None):
     # Start the shared instance of BeamNG
     # TODO How to stop this?
     global BEAMNG_PROCESS
-
-    # If we want to use BeamNG py we need to enable researchGE so BeamNG will try to connect over and over...
-    retry = 0
-    while True:
-
-        if retry >= 5:
-            raise Exception("Cannot start BeamNG. Giving up")
-
-        if retry > 0:
-            l.info("Wait 10 seconds before retry")
-            sleep(10)
-        try:
-            BEAMNG_PROCESS = TestRunner.start_shared_beamng(ctrl)
-            # Does this make any difference? Will BeamNG fail after some time or soon
-            sleep(5)
-            if BEAMNG_PROCESS.poll() is None:
-                # Process is running.
-                break
-            else:
-                l.error("BeamNG did not started. Retry")
-                retry += 1
-
-        except Exception as e:
-            l.error("Cannot start BeamNG", e)
-            retry += 1
-
-    # This should ensure that BeamNG is actually started before we can instantiate the various runners...
-    sleep(20)
 
     def factory(test):
         # Make sure that all the Test Runners will share the same instance of BeamNG. If the instance is null, each

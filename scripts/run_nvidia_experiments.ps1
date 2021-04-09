@@ -4,15 +4,15 @@ Param (
 )
 
 # This is large on purpose to let timeLimit trigger
-$generations=1000
+$generations=3000
 
 # $wrapperScript="C:\LuganoPassau\.venv\Scripts\python.exe C:\LuganoPassau\asfault\nvidia_ai.py"
-$wrapperScript="C:\Users\Aurora\illumination\.venv\Scripts\python.exe C:\Users\Aurora\illumination\ai_drive\dave2.py " #--debug"
+$wrapperScript="C:\illumination\.venv\Scripts\python.exe C:\illumination\ai_drive\dave2.py " #--debug"
 
 dir $experimentsDir -Directory |
 Foreach-Object {
 	$experiment = $_.FullName
-
+    $wrapperScript="C:\illumination\.venv\Scripts\python.exe C:\illumination\ai_drive\dave2.py "
     # Use the folder name to configure nvidia output-to 
     $wrapperScript="$wrapperScript --output-to $_"
 
@@ -36,7 +36,8 @@ Foreach-Object {
             
             # Execute the experiment from the right folder
             #cd C:\Users\Alessio\AsFault\
-            D:\Tara\src\asfault\venv\Scripts\python.exe D:\Tara\src\asfault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --use-simulation-time --render $wrapperScript
+            python.exe C:\modified-asfault\AsFault\src\asfault\app.py --log $log evolve --env $environmentDir ext --generations $generations --time-limit $timeLimit --use-simulation-time --render BeamNG
+            #$wrapperScript
             #cd C:\Users\Alessio\AsFault\scripts
         }
     }

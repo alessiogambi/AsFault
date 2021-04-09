@@ -349,7 +349,9 @@ class PlotConfig:
 class ExecutionConfig:
     BEAMNG_DIR = os.path.join(str(Path.home()), 'Documents/BeamNG.research')
     BEAMNG_EXECUTABLE = 'BeamNG.research.x64.exe'
+    BEAMNG_HOME = os.environ['BNG_HOME']
 
+    MODEL_FILE = '/models/self-driving-car-178-2020.h5'
     LEVEL_DIR = 'levels/asfault'
     HOST = 'localhost'
     PORT = 32512
@@ -379,6 +381,8 @@ class ExecutionConfig:
 
         ret['beamng_dir'] = ExecutionConfig.BEAMNG_DIR
         ret['beamng_execuitable'] = ExecutionConfig.BEAMNG_EXECUTABLE
+        ret['beamnng_home'] = ExecutionConfig.BEAMNG_HOME
+        ret['model_file'] = ExecutionConfig.MODEL_FILE
 
         ret['level_dir'] = ExecutionConfig.LEVEL_DIR
         ret['host'] = ExecutionConfig.HOST
@@ -411,6 +415,10 @@ class ExecutionConfig:
 
         self.beamng_dir = cfg.get('beamng_dir', ExecutionConfig.BEAMNG_DIR)
         self.beamng_executable = cfg.get('beamng_executable', ExecutionConfig.BEAMNG_EXECUTABLE)
+
+        self.beamng_home = cfg.get('beamng_home', ExecutionConfig.BEAMNG_HOME)
+        self.model_file = cfg.get('model_file', ExecutionConfig.MODEL_FILE)
+
 
         self.level_dir = cfg.get('level_dir', ExecutionConfig.LEVEL_DIR)
         self.host = cfg.get('host', ExecutionConfig.HOST)

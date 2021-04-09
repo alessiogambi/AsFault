@@ -1,6 +1,5 @@
 import logging as l
 
-from asfault.beamer import generate_test_prefab
 from asfault.network import *
 from asfault.plotter import *
 
