@@ -537,7 +537,7 @@ class TestRunner:
 
         self.oob_tolerance = 0.95
         self.model = None
-        self.model_file = c.ex.model_file
+        self.model_file = "D:\\tara\\AsFault\\models\\self-driving-car-178-2020.h5"#c.ex.model_file
 
 
     def normalise_path(self, path):
@@ -665,18 +665,16 @@ class TestRunner:
             if attempt > 2:
                 time.sleep(5)
 
-            sim = self._run_simulation(self.test)
+            sim, result, reason = self._run_simulation(self.test)
 
             if sim.info.success:
                 if sim.exception_str:
                     result = "FAIL"
                     reason = sim.exception_str
                 else:
-                    result = "PASS"
-                    reason = 'Successful test'
+                    result = result
+                    reason = reason
                 condition = False
-
-        execution_data = sim.states
 
         self.end_time = datetime.datetime.now()
         execution = self.evaluate(result, reason)
@@ -704,6 +702,10 @@ class TestRunner:
                 return True
 
     def _run_simulation(self, the_test) -> SimulationData:
+        simulations_dir = c.rg.get_simulations_path()
+        if not os.path.exists(simulations_dir):
+            os.makedirs(simulations_dir)
+
         if not self.brewer:
             self.brewer = BeamNGBrewer(beamng_home=self.beamng_home, beamng_user=self.beamng_user)
             self.vehicle = self.brewer.setup_vehicle()
@@ -736,7 +738,7 @@ class TestRunner:
 
         steps = brewer.params.beamng_steps
         simulation_id = time.strftime('%Y-%m-%d--%H-%M-%S', time.localtime())
-        name = 'beamng_executor/sim_$(id)'.replace('$(id)', simulation_id)
+        name = os.path.join(simulations_dir, 'sim_$(id)'.replace('$(id)', simulation_id))
         sim_data_collector = SimulationDataCollector(self.vehicle, beamng, brewer.decal_road, brewer.params,
                                                      vehicle_state_reader=vehicle_state_reader,
                                                      camera=self.camera,
@@ -886,7 +888,7 @@ class TestRunner:
 
             self.end_iteration()
 
-        return sim_data_collector.simulation_data
+        return sim_data_collector.simulation_data, result, reason
 
     def end_iteration(self):
         try:
@@ -896,7 +898,7 @@ class TestRunner:
             traceback.print_exception(type(ex), ex, ex.__traceback__)
 
     def close(self):
-        l.info("CLOSING EXECUTOR")
+        l.info("Closing executor")
         if self.brewer:
             try:
                 self.brewer.beamng.close()

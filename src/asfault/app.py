@@ -134,12 +134,12 @@ def ext(seed, generations, render, show, time_limit, use_simulation_time, ctrl):
     # config.ex.direction_agnostic_boundary = True
     if ctrl == "BeamNG":
         # Patch - Make sure we say the car is driven by the ai
-        config.ex.ai_controlled = 'true'
+        # config.ex.ai_controlled = 'true'
         factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=None)
     else:
         factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ctrl)
 
-    factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ctrl)
+    # factory = gen_beamng_runner_factory(config.ex.get_level_dir(), config.ex.host, config.ex.port, plot=show, ctrl=ctrl)
     experiments.deap_experiment(seed, generations, factory, render=render, show=show, time_limit=time_limit, use_simulation_time=use_simulation_time)
 
 

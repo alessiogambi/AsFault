@@ -8,6 +8,7 @@ PATH_OUTPUT = 'output'
 PATH_PLOTS = 'plots'
 PATH_GRAPHS = 'graphs'
 PATH_TESTS = 'tests'
+PATH_SIMULATIONS = 'simulations'
 PATH_EXECS = 'execs'
 PATH_REPLAYS = 'replay'
 FILE_EVOLUTION = 'evolution.json'
@@ -62,6 +63,10 @@ class AsFaultEnv:
     def get_tests_path(self):
         output_path = self.get_output_path()
         return os.path.join(output_path, PATH_TESTS)
+
+    def get_simulations_path(self):
+        output_path = self.get_output_path()
+        return os.path.join(output_path, PATH_SIMULATIONS)
 
     def get_results_path(self):
         output_path = self.get_output_path()

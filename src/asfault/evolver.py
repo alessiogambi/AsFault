@@ -4,7 +4,7 @@ from time import time, sleep
 import itertools
 
 from asfault.config import *
-from asfault.beamer import TestRunner, RESULT_SUCCESS, REASON_OFF_TRACK, REASON_TIMED_OUT, REASON_GOAL_REACHED, generate_test_prefab
+from asfault.beamer import TestRunner, RESULT_SUCCESS, REASON_OFF_TRACK, REASON_TIMED_OUT, REASON_GOAL_REACHED
 from asfault.generator import RoadGenerator, generate_networks
 from asfault.plotter import *
 

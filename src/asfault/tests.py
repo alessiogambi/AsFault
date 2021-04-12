@@ -801,6 +801,9 @@ class TestExecution:
                 self.simulation_time = last_state.timestamp
             else:
                 self.simulation_time = None
+        else:
+            self.simulation_time = 0
+        
 
     # TODO This is the same as beamer.TestRunner.off_track. Consider to uniform the two !
     def off_track(self, carstate):
