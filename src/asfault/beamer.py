@@ -28,6 +28,7 @@ from multiprocessing import Process
 from self_driving.oob_monitor import OutOfBoundsMonitor
 from self_driving.road_polygon import RoadPolygon
 from self_driving.nvidia_prediction import NvidiaPrediction
+from self_driving.beamng_pose import BeamNGPose
 
 import traceback
 from typing import Tuple
@@ -489,7 +490,7 @@ def prepare_obstacles(network):
 def nodes_to_coords(nodes):
     coords = list()
     for node in nodes:
-        coords.append([node['x'], node['y'], -28.0, node['width']])
+        coords.append([node['x'], node['y'], node['z'], node['width']])
     return coords
 
 class TestRunner:
@@ -600,7 +601,6 @@ class TestRunner:
             minimum_distance = min(distances)
             average_distance = self.get_average_distance(distances)
             maximum_distance = max(distances)
-
             options['minimum_distance'] = minimum_distance
             options['average_distance'] = average_distance
             options['maximum_distance'] = maximum_distance
@@ -702,6 +702,7 @@ class TestRunner:
                 return True
 
     def _run_simulation(self, the_test) -> SimulationData:
+        result, reason = None, None
         simulations_dir = c.rg.get_simulations_path()
         if not os.path.exists(simulations_dir):
             os.makedirs(simulations_dir)
@@ -712,15 +713,15 @@ class TestRunner:
             self.camera = self.brewer.setup_scenario_camera()
 
         # For the execution we need the interpolated points
-        street = prepare_streets(self.test.network)
-        nodes = nodes_to_coords(street[0]['nodes'])
-        #nodes = the_test.interpolated_points
-
+        street = self.test.get_path_polyline()   
+        widths = [8.0, ] * len(street.coords)    
+        nodes = nodes_to_coords(polyline_to_decalroad(street, widths, -28.0))
+        self.test.nodes = nodes
 
         brewer = self.brewer
         brewer.setup_road_nodes(nodes)
         beamng = brewer.beamng
-        waypoint_goal = BeamNGWaypoint('waypoint_goal', us.get_node_coords(nodes[-1]))
+        waypoint_goal = BeamNGWaypoint('waypoint_goal', [self.test.goal.x, self.test.goal.y])
 
         # TODO Make sure that maps points to the right folder !
         if self.beamng_user is not None:
@@ -733,7 +734,7 @@ class TestRunner:
         maps.beamng_map.generated().write_items(brewer.decal_road.to_json() + '\n' + waypoint_goal.to_json())
 
         cameras = BeamNGCarCameras()
-        vehicle_state_reader = VehicleStateReader(self.vehicle, beamng, additional_sensors=cameras.cameras_array)
+        vehicle_state_reader = VehicleStateReader(self.vehicle, beamng, additional_sensors=cameras.cameras_array)       
         brewer.vehicle_start_pose = brewer.road_points.vehicle_start_pose()
 
         steps = brewer.params.beamng_steps
@@ -749,11 +750,6 @@ class TestRunner:
 
         sim_data_collector.get_simulation_data().start()
         try:
-            #start = timeit.default_timer()
-            brewer.bring_up()
-            # iterations_count = int(self.test_time_budget/250)
-            # idx = 0
-
             brewer.bring_up()
             from keras.models import load_model
             if not self.model:
@@ -831,7 +827,7 @@ class TestRunner:
                         else:
                             l.info('Ending test due to vehicle going off track.')
                             result, reason = RESULT_FAILURE, REASON_OFF_TRACK
-                            assert not last_state.is_oob, "Car drove out of the lane " + str(sim_data_collector.name)
+                            break
                     else:
                         l.debug("- Observed OBE state")
                         if c.ex.dont_stop_at_obe:

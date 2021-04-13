@@ -661,6 +661,7 @@ class CarState:
         self.vel_x = vel_x
         self.vel_y = vel_y
         self.vel_z = vel_z
+        self.nodes = list()
 
     def get_path_projection(self):
         path = self.test.get_path_polyline()
@@ -807,12 +808,7 @@ class TestExecution:
 
     # TODO This is the same as beamer.TestRunner.off_track. Consider to uniform the two !
     def off_track(self, carstate):
-        network = carstate.test.network
-        street = prepare_streets(network)
-        nodes = street[0]['nodes']
-        _nodes = []
-        for node in nodes:
-            _nodes.append((node['x'], node['y'], node['z'], node['width']))
+        _nodes = self.test.nodes
         car_pose = (carstate.pos_x, carstate.pos_y, carstate.pos_z)
         oob_monitor = OutOfBoundsMonitorAsFault(RoadPolygon.from_nodes(_nodes), car_pose, None)
         is_oob, _, _, _ = oob_monitor.get_oob_info()
