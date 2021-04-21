@@ -20,7 +20,8 @@ from shapely.geometry import box
 from asfault.network import *
 from asfault.plotter import CarTracer
 from asfault.tests import *
-from shapely.geometry import box
+from shapely.geometry import box, MultiLineString
+from shapely import ops
 
 # Required to force BeamNGpy to reopen the socket once the process is done
 from multiprocessing import Process
@@ -713,8 +714,18 @@ class TestRunner:
             self.camera = self.brewer.setup_scenario_camera()
 
         # For the execution we need the interpolated points
-        street = self.test.get_path_polyline()   
-        widths = [8.0, ] * len(street.coords)    
+        # Using the path polyline is inaccurate as it does not correspond to the spine of the road
+        # street = self.test.get_path_polyline()
+
+        # Get all the spines (linestrings) for each segment of the road
+        spines = [n.get_spine() for n in self.test.get_path()]
+        # Combine them into a multi-linestring
+        multi_line = MultiLineString(spines)
+        # Merge the lines and avoid overlaps and duplicates
+        street = ops.linemerge(multi_line)
+
+        # This controls the widht of the entire road, so 8.0 means 4m lanes
+        widths = [8.0, ] * len(street.coords)
         nodes = nodes_to_coords(polyline_to_decalroad(street, widths, -28.0))
         self.test.nodes = nodes
 
