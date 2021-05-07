@@ -59,7 +59,7 @@ class RoadPoints:
         r = origin + np.array([v[1], -v[0]])
         return tuple(l), tuple(r)
 
-    def vehicle_start_pose(self, meters_from_road_start=2.5, road_point_index=0) \
+    def vehicle_start_pose(self, meters_from_road_start=0.5, road_point_index=0) \
             -> BeamNGPose:
         assert self.n > road_point_index, f'road length is {self.n} it does not have index {road_point_index}'
         p1 = self.middle[road_point_index]

@@ -182,11 +182,11 @@ class LaneDistanceEvaluator(SuiteEvaluator):
 
         if test.execution.result == RESULT_SUCCESS:
             fitness = test.execution.maximum_distance / c.ev.lane_width
-            fitness = min(fitness, 2.5)
+            fitness = min(fitness, 1.0)
         else:
             if test.execution.reason == REASON_OFF_TRACK:
                 fitness = test.execution.maximum_distance / c.ev.lane_width
-                fitness = min(fitness, 2.5)
+                fitness = min(fitness, 1.0)
             else:
                 fitness = -1
 

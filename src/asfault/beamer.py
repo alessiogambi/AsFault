@@ -10,6 +10,7 @@ from time import sleep
 import time
 import os
 import json
+import scipy 
 
 from collections import defaultdict
 import shapely.geometry
@@ -713,10 +714,6 @@ class TestRunner:
             self.vehicle = self.brewer.setup_vehicle()
             self.camera = self.brewer.setup_scenario_camera()
 
-        # For the execution we need the interpolated points
-        # Using the path polyline is inaccurate as it does not correspond to the spine of the road
-        # street = self.test.get_path_polyline()
-
         # Get all the spines (linestrings) for each segment of the road
         spines = [n.get_spine() for n in self.test.get_path()]
         # Combine them into a multi-linestring
@@ -724,10 +721,59 @@ class TestRunner:
         # Merge the lines and avoid overlaps and duplicates
         street = ops.linemerge(multi_line)
 
-        # This controls the widht of the entire road, so 8.0 means 4m lanes
+        # project to start and goal
+        start_proj = street.project(self.test.start, normalized=True)
+        start_proj = street.interpolate(start_proj, normalized=True)
+        _, street = split(street, start_proj)
+
+        goal_proj = street.project(self.test.goal, normalized=True)
+        goal_proj = street.interpolate(goal_proj, normalized=True)
+        street, _ = split(street, goal_proj)
+
+        # This controls the width of the entire road, so 8.0 means 4m lanes
         widths = [8.0, ] * len(street.coords)
         nodes = nodes_to_coords(polyline_to_decalroad(street, widths, -28.0))
         self.test.nodes = nodes
+        
+        # hacky way of finding starting position's index
+        # t_nodes = [tuple([node[0], node[1]]) for node in nodes]
+        # start_idx = scipy.spatial.distance.cdist([(self.test.start.x, self.test.start.y)], t_nodes).argmin()
+        
+        # beg_poly = self.test.get_path()[0].abs_polygon
+        # if not beg_poly.contains(self.test.start):
+        # # Hacky way of fixing road direction, switching the start and goal
+        if len(nodes) < 20:
+            l.info('REVERSE DIRECTION')
+            temp = self.test.start
+            self.test.start = self.test.goal
+            self.test.goal = temp
+            path = self.test.get_path()
+            reversed_path = []
+            for i in range(len(path)-1, -1, -1):   
+                reversed_path.append(path[i]) 
+            self.test.set_path(reversed_path)
+
+            # Get all the spines (linestrings) for each segment of the road
+            spines = [n.get_spine() for n in self.test.get_path()]
+            # Combine them into a multi-linestring
+            multi_line = MultiLineString(spines)
+            # Merge the lines and avoid overlaps and duplicates
+            street = ops.linemerge(multi_line)
+
+            # # # project to start and goal
+            start_proj = street.project(self.test.start, normalized=True)
+            start_proj = street.interpolate(start_proj, normalized=True)
+            _, street = split(street, start_proj)
+
+            goal_proj = street.project(self.test.goal, normalized=True)
+            goal_proj = street.interpolate(goal_proj, normalized=True)
+            street, _ = split(street, goal_proj)
+
+            # This controls the width of the entire road, so 8.0 means 4m lanes
+            widths = [8.0, ] * len(street.coords)
+            nodes = nodes_to_coords(polyline_to_decalroad(street, widths, -28.0))
+            self.test.nodes = nodes
+
 
         brewer = self.brewer
         brewer.setup_road_nodes(nodes)
@@ -749,7 +795,7 @@ class TestRunner:
         brewer.vehicle_start_pose = brewer.road_points.vehicle_start_pose()
 
         steps = brewer.params.beamng_steps
-        simulation_id = time.strftime('%Y-%m-%d--%H-%M-%S', time.localtime())
+        simulation_id = time.strftime('%Y-%m-%d--%H-%M-%S', time.localtime()) + f"_{str(self.test.test_id).zfill(4)}"
         name = os.path.join(simulations_dir, 'sim_$(id)'.replace('$(id)', simulation_id))
         sim_data_collector = SimulationDataCollector(self.vehicle, beamng, brewer.decal_road, brewer.params,
                                                      vehicle_state_reader=vehicle_state_reader,
@@ -758,7 +804,6 @@ class TestRunner:
 
         # TODO: Hacky - Not sure what's the best way to set this...
         sim_data_collector.oob_monitor.tolerance = self.oob_tolerance
-
         sim_data_collector.get_simulation_data().start()
         try:
             brewer.bring_up()
@@ -793,7 +838,6 @@ class TestRunner:
                 }
 
                 state = CarState.from_dict(self.test, data)
-
                 if state not in self.states:
                     self.states.append(state)
 
