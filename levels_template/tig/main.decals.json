@@ -1,0 +1,10 @@
+{
+ "header":{
+  "name":"DecalData File",
+  "comments":"// Instances format: rectIdx, size, renderPriority, position.x, position.y, position.z, normal.x, normal.y, normal.z, tangent.x, tangent.y, tangent.z",
+  "version":1}
+  ,
+ "instances":{
+  }
+  }
+ 

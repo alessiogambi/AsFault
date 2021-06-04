@@ -1,0 +1,1 @@
+{"class":"GroundPlane","persistentId":"8538a723-a048-47be-8a82-0d46c1159338","__parent":"MissionGroup","position":"0 0 0","material":"WarningMaterial","squareSize":54}
