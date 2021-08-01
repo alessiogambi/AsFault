@@ -1,10 +1,11 @@
 import logging as l
 
-from asfault.beamer import generate_test_prefab
 from asfault.network import *
 from asfault.plotter import *
 
 from time import time
+
+import random
 
 def plot_network(plot_file, network):
     title = 'debug'
@@ -12,10 +13,66 @@ def plot_network(plot_file, network):
     plotter.plot_network(network)
     save_plot(plot_file, dpi=c.pt.dpi_final)
 
+
+class MetaCrossover:
+    """ It combines the logic that retries the crossover operation if fails """
+    # For the moment we use only Join
+    def __init__(self):
+        self.choice = Join()
+
+    def attempt_crosssover(self, mom, dad, crossover):
+        l.debug('Attempting to cross over: %s (%s) %s', mom, type(crossover), dad)
+        epsilon = 0.01
+        while True:
+            children, aux = crossover.apply(mom, dad)
+            if children:
+                consistent = []
+                for child in children:
+                    try:
+                        if child.complete_is_consistent():
+                            consistent.append(child)
+                        else:
+                            break
+                    except Exception as e:
+                        l.error('Exception while creating test from child: ')
+                        # l.exception(e)
+                        break
+
+                if consistent:
+                    return consistent, aux
+
+            failed = random.random()
+            if failed < epsilon:
+                break
+
+            epsilon *= 1.05
+
+        return None, aux
+
+    def crossover(self, mom, dad):
+        children, aux = self.choice.try_all(mom, dad, self)
+        l.info('Finished trying all crossovers')
+
+        # children, aux = self.attempt_crosssover(mom, dad, choice)
+        if not aux:
+            aux = {}
+        if children:
+            aux['type'] = self.choice
+            l.debug('Cross over was applicable.')
+            tests = []
+            for child in children:
+                if child.complete_is_consistent():
+                    test = self.test_from_network(child)
+                    tests.append(test)
+            return tests, aux
+
+        l.debug('Cross over between %s x %s considered impossible.', mom, dad)
+        return None, {}
+
+
 class Crossover:
-    def __init__(self, name, rng):
+    def __init__(self, name):
         self.name = name
-        self.rng = rng
 
     def apply(self, mom, dad):
         raise NotImplementedError()
@@ -27,10 +84,10 @@ class Crossover:
 class Merge(Crossover):
     NAME = 'merge'
 
-    def __init__(self, rng, name=None):
+    def __init__(self, name=None):
         if not name:
             name = Merge.NAME
-        super().__init__(name, rng)
+        super().__init__(name)
 
     def get_point_side(self, line, point):
         side = (point[0] - line.coords[0][0]) * \
@@ -103,7 +160,7 @@ class PartialMerge(Merge):
     def split_network(self, network, count):
         roots = network.get_roots()
 
-        take = self.rng.sample(roots, count)
+        take = random.sample(roots, count)
         leave = {node for node in roots if node not in take}
 
         taken = self.trim_network(network, take)
@@ -146,11 +203,11 @@ class PartialMerge(Merge):
         d_roots = d_network.get_roots()
 
         if self.m_count == 'rng':
-            m_count = self.rng.randint(1, len(m_roots))
+            m_count = random.randint(1, len(m_roots))
         else:
             m_count = self.m_count
         if self.d_count == 'rng':
-            d_count = self.rng.randint(1, len(d_roots))
+            d_count = random.randint(1, len(d_roots))
         else:
             d_count = self.d_count
 
@@ -170,8 +227,8 @@ class PartialMerge(Merge):
 
         m_range = list(range(1, len(m_roots) + 1))
         d_range = list(range(1, len(d_roots) + 1))
-        self.rng.shuffle(m_range)
-        self.rng.shuffle(d_range)
+        random.shuffle(m_range)
+        random.shuffle(d_range)
 
         for m_count in m_range:
             for d_count in d_range:
@@ -196,9 +253,10 @@ class PartialMerge(Merge):
 
         return None, {}
 
+
 class Join(Crossover):
-    def __init__(self, rng):
-        super().__init__('join', rng)
+    def __init__(self):
+        super().__init__('join')
 
     def perform_join(self, mom, dad, m_joint, d_joint):
         l.debug('Selected mom joint %s and dad joint %s', m_joint, d_joint)
@@ -207,7 +265,6 @@ class Join(Crossover):
         l.debug('Joined networks at the selected joints.')
 
         return m_cut, {'m_joint': m_joint, 'd_joint': d_joint}
-
 
     def join(self, mom, dad):
         mom = mom.network
@@ -220,8 +277,8 @@ class Join(Crossover):
 
         l.debug('Got mom and dad nodes for joint selection.')
 
-        m_joint = self.rng.sample(m_nodes, 1)[0]
-        d_joint = self.rng.sample(d_nodes, 1)[0]
+        m_joint = random.sample(m_nodes, 1)[0]
+        d_joint = random.sample(d_nodes, 1)[0]
 
         return self.perform_join(mom, dad, m_joint, d_joint)
 
@@ -245,7 +302,8 @@ class Join(Crossover):
     def certify(self, network, gen):
         if network.complete_is_consistent():
             try:
-                test = gen.test_from_network(network)
+                # Is this really necessary
+                gen.test_from_network(network)
                 return True
             except Exception as e:
                 l.error('Exception while joining: ')
@@ -259,8 +317,8 @@ class Join(Crossover):
         m_roots = list(mom.get_roots())
         d_roots = list(dad.get_roots())
 
-        self.rng.shuffle(m_roots)
-        self.rng.shuffle(d_roots)
+        random.shuffle(m_roots)
+        random.shuffle(d_roots)
 
         attempts = 0
         for m_root in m_roots:
@@ -270,7 +328,7 @@ class Join(Crossover):
             m_end = math.ceil(len(m_branch) * 0.75)
             assert m_beg < m_end
             m_branch = m_branch[m_beg:m_end]
-            self.rng.shuffle(m_branch)
+            random.shuffle(m_branch)
 
             for d_root in d_roots:
                 d_branch = dad.get_branch_from(d_root)
@@ -279,7 +337,7 @@ class Join(Crossover):
                 d_end = math.ceil(len(d_branch) * 0.75)
                 assert d_beg < d_end
                 d_branch = d_branch[d_beg:d_end]
-                self.rng.shuffle(d_branch)
+                random.shuffle(d_branch)
 
                 m_eps = 0.5
                 for m_joint in m_branch:
@@ -305,12 +363,12 @@ class Join(Crossover):
                         if len(certified) == 2:
                             return certified, aux
 
-                        failed = self.rng.random()
+                        failed = random.random()
                         if True or failed  < d_eps:
                             break
                         d_eps *= 1.25
 
-                    failed = self.rng.random()
+                    failed = random.random()
                     if True or failed < m_eps:
                         break
                     m_eps *= 1.25

@@ -8,7 +8,9 @@ PATH_OUTPUT = 'output'
 PATH_PLOTS = 'plots'
 PATH_GRAPHS = 'graphs'
 PATH_TESTS = 'tests'
+PATH_SIMULATIONS = 'simulations'
 PATH_EXECS = 'execs'
+PATH_REPLAYS = 'replay'
 FILE_EVOLUTION = 'evolution.json'
 FILE_EXECUTION = 'execution.json'
 FILE_PLOT = 'plot.json'
@@ -62,6 +64,10 @@ class AsFaultEnv:
         output_path = self.get_output_path()
         return os.path.join(output_path, PATH_TESTS)
 
+    def get_simulations_path(self):
+        output_path = self.get_output_path()
+        return os.path.join(output_path, PATH_SIMULATIONS)
+
     def get_results_path(self):
         output_path = self.get_output_path()
         return os.path.join(output_path, FILE_RESULTS)
@@ -82,6 +88,10 @@ class AsFaultEnv:
         execs_path = self.get_output_path()
         return os.path.join(execs_path, PATH_EXECS)
 
+    def get_replays_path(self):
+        replays_path = self.get_output_path()
+        return os.path.join(replays_path, PATH_REPLAYS)
+
     def ensure_directories(self):
         paths = [
             self.env_dir,
@@ -90,6 +100,7 @@ class AsFaultEnv:
             self.get_plots_path(),
             self.get_tests_path(),
             self.get_execs_path(),
+            self.get_replays_path(),
             self.get_graphs_path()
         ]
         for path in paths:
@@ -108,16 +119,20 @@ class EvolutionConfig:
     POP_SIZE = 25
     MUT_CHANCE = 0.05
     INTRO_CHANCE = 0.15
-    EVALUATOR = 'lanedist'
-    SELECTOR = 'tournament'
-    ESTIMATOR = 'length'
-    JOIN_PROBABILITY = 0.5
+    EVALUATOR = None # 'lanedist'
+    SELECTOR =  None # 'tournament'
+    ESTIMATOR = None # 'length'
+    JOIN_PROBABILITY = 0.5 # REPLACE THIS WITH CROSSOVER_PROBABILITY
     PARTIAL_MERGE_M_COUNT = 1
     PARTIAL_MERGE_D_COUNT = 1
     TRY_ALL_OPS = True
 
     ATTEMPT_REPAIR = False
     SEARCH_STOPPER = None
+    RESTART_SEARCH = True
+    POPULATION_MERGER = None
+
+    CROSSOVER_PROBABILITY = 0.8
 
     @staticmethod
     def get_default():
@@ -143,6 +158,10 @@ class EvolutionConfig:
 
         ret['attempt_repair'] = EvolutionConfig.ATTEMPT_REPAIR
         ret['search_stopper'] = EvolutionConfig.SEARCH_STOPPER
+        ret['restart_search'] = EvolutionConfig.RESTART_SEARCH
+
+        ret['pop_merger'] = EvolutionConfig.POPULATION_MERGER
+        ret['crossover_probability'] = EvolutionConfig.CROSSOVER_PROBABILITY
 
         return ret
 
@@ -170,6 +189,10 @@ class EvolutionConfig:
 
         self.attempt_repair = cfg.get('attempt_repair', EvolutionConfig.ATTEMPT_REPAIR)
         self.search_stopper = cfg.get('search_stopper', EvolutionConfig.SEARCH_STOPPER)
+        self.restart_search = cfg.get('restart_search', EvolutionConfig.RESTART_SEARCH)
+
+        self.pop_merger = cfg.get('pop_merger', EvolutionConfig.POPULATION_MERGER)
+        self.crossover_probability = cfg.get('crossover_probability', EvolutionConfig.CROSSOVER_PROBABILITY)
 
 
 class PlotConfig:
@@ -330,6 +353,10 @@ class PlotConfig:
 
 class ExecutionConfig:
     BEAMNG_DIR = os.path.join(str(Path.home()), 'Documents/BeamNG.research')
+    BEAMNG_EXECUTABLE = 'BeamNG.research.x64.exe'
+    BEAMNG_HOME = os.environ['BNG_HOME']
+
+    MODEL_FILE = '/models/self-driving-car-178-2020.h5'
     LEVEL_DIR = 'levels/asfault'
     HOST = 'localhost'
     PORT = 32512
@@ -348,7 +375,7 @@ class ExecutionConfig:
     MIN_SPEED = 2
     STANDSTILL_THRESHOLD = 120
     DONT_STOP_AT_OBE = False
-    OBSERVATION_INTERVAL = 10
+    OBSERVATION_INTERVAL = 0
 
     CUSTOM_BEAMNG_TEMPLATE = None
 
@@ -358,6 +385,10 @@ class ExecutionConfig:
         ret = dict()
 
         ret['beamng_dir'] = ExecutionConfig.BEAMNG_DIR
+        ret['beamng_execuitable'] = ExecutionConfig.BEAMNG_EXECUTABLE
+        ret['beamnng_home'] = ExecutionConfig.BEAMNG_HOME
+        ret['model_file'] = ExecutionConfig.MODEL_FILE
+
         ret['level_dir'] = ExecutionConfig.LEVEL_DIR
         ret['host'] = ExecutionConfig.HOST
         ret['port'] = ExecutionConfig.PORT
@@ -388,6 +419,12 @@ class ExecutionConfig:
             cfg = json.loads(infile.read())
 
         self.beamng_dir = cfg.get('beamng_dir', ExecutionConfig.BEAMNG_DIR)
+        self.beamng_executable = cfg.get('beamng_executable', ExecutionConfig.BEAMNG_EXECUTABLE)
+
+        self.beamng_home = cfg.get('beamng_home', ExecutionConfig.BEAMNG_HOME)
+        self.model_file = cfg.get('model_file', ExecutionConfig.MODEL_FILE)
+
+
         self.level_dir = cfg.get('level_dir', ExecutionConfig.LEVEL_DIR)
         self.host = cfg.get('host', ExecutionConfig.HOST)
         self.port = cfg.get('port', ExecutionConfig.PORT)

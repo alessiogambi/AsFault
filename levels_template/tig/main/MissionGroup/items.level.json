@@ -1,0 +1,7 @@
+{"name":"sky_and_sun","class":"SimGroup","persistentId":"43465d7d-0971-4933-89de-c4833b623141","__parent":"MissionGroup"}
+{"name":"CameraBookmarks","class":"SimGroup","persistentId":"10c228e4-8d9c-40fb-bdb6-d20febb48221","__parent":"MissionGroup"}
+{"name":"vegetation","class":"SimGroup","persistentId":"4f71ae35-2df2-4faf-9297-383b1a62642a","__parent":"MissionGroup"}
+{"name":"Water","class":"SimGroup","persistentId":"f0bb0c96-1127-4a30-bce3-cc64d2f856ec","__parent":"MissionGroup"}
+{"name":"PlayerDropPoints","class":"SimGroup","persistentId":"ebe56c16-ada2-45a5-8b62-07095074d620","__parent":"MissionGroup","Enabled":"1"}
+{"name":"terrain1","class":"TerrainBlock","persistentId":"4e2586a5-7955-49f0-bf35-73613f8cb368","__parent":"MissionGroup","position":[-1023.514038085938,-1114.167846679688,-539.9841918945313],"terrainFile":"levels/tig/terrain.ter"}
+{"name":"generated","class":"SimGroup","persistentId":"c545370a-d2b9-4f42-b6fa-578dda84bd81","__parent":"MissionGroup"}

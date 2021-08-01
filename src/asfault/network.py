@@ -973,10 +973,14 @@ class NetworkLayout:
         if len(boundary_nodes) > 1:
             options = set()
             for left, right in itertools.combinations(boundary_nodes, 2):
-                if self.is_reachable(left, right):
+                _left = int(NetworkNode.to_dict(left)['seg_id'])
+                _right = int(NetworkNode.to_dict(right)['seg_id'])
+                if self.is_reachable(left, right) and _left < _right:
                     options.add((left, right))
-                if self.is_reachable(right, left):
+                    #print(_left, _right)
+                if self.is_reachable(right, left) and _right < _left:
                     options.add((right, left))
+                    #print(_right, _left)
             return options
 
         return []
@@ -1424,7 +1428,6 @@ class NetworkLayout:
 
     def replace_node(self, target, replacement):
         self.remove_branch_intersections()
-        l.info(target)
         parent = self.get_parent(target)
         children = self.get_children(target)
         self.remove_node(target)
@@ -1464,7 +1467,7 @@ class NetworkLayout:
 
     def has_connected_boundary_segments(self):
         candidates = self.get_start_goal_candidates()
-        l.info('Got %s start/goal candidates.', len(candidates))
+        l.debug('Got %s start/goal candidates.', len(candidates))
         roots = self.get_nodes(TYPE_ROOT)
         boundary = self.get_boundary_intersecting_nodes()
         our_bounds = self.bounds.bounds
@@ -1480,22 +1483,22 @@ class NetworkLayout:
             if end_bounds[0] >= our_bounds[0] and end_bounds[1] >= our_bounds[
                 1] and end_bounds[2] <= our_bounds[2] and end_bounds[3] <= \
                     end_bounds[3]:
-                l.info('Branche\'s end lies within bounds.')
+                l.debug('Branche\'s end lies within bounds.')
                 return False
 
             if len(boundary) < 2:
-                l.info('Branch does not two boundary intersecting nodes!')
+                l.debug('Branch does not two boundary intersecting nodes!')
                 return False
 
         ret = len(candidates) > 0
-        l.info('Has connected boundary segments: %s', ret)
+        l.debug('Has connected boundary segments: %s', ret)
         return ret
 
     def check_parentage(self):
         for node in self.parentage.nodes():
             children = list(self.parentage[node])
             if len(children) > 1:
-                l.info('! Node has more than one child: %s', node)
+                l.debug('! Node has more than one child: %s', node)
                 return False
         return True
 
@@ -1530,7 +1533,7 @@ class NetworkLayout:
         for root in roots:
             spine = self.get_branch_spine(root)
             if spine.length < min_length:
-                l.info('Spine starting at %s is too short: %s < %s.', root,
+                l.debug('Spine starting at %s is too short: %s < %s.', root,
                        spine.length, min_length)
                 return False
 
@@ -1538,10 +1541,10 @@ class NetworkLayout:
 
     def all_branches_connected(self):
         roots = self.get_nodes(TYPE_ROOT)
-        l.info('Got roots')
+        l.debug('Got roots')
         if len(roots) > 1:
             for root in roots:
-                l.info('Checking root %s', root)
+                l.debug('Checking root %s', root)
                 street = self.get_branch_from(root)
                 clear = False
                 for seg in street:
@@ -1551,14 +1554,14 @@ class NetworkLayout:
                     intersecting = self.get_segment_intersecting_nodes(seg)
                     if intersecting:
                         clear = True
-                        l.info('Found an intersection for %s', root)
+                        l.debug('Found an intersection for %s', root)
                         break
 
                 if not clear:
-                    l.info('Not all branches are connected!')
+                    l.debug('Not all branches are connected!')
                     return False
 
-        l.info('All branches are connected!')
+        l.debug('All branches are connected!')
         return True
 
     def clean_intersection_check(self):
@@ -1593,5 +1596,5 @@ class NetworkLayout:
             l.debug('Not all branches are long enough')
             return False
 
-        l.info('Network is completely consistent.')
+        l.debug('Network is completely consistent.')
         return True
